@@ -1,6 +1,6 @@
--- DELTA MOBILE: V34.2 ZENITH PRIME (CUSTOM FINAL)
+-- DELTA MOBILE: V34.3 ZENITH PRIME (CUSTOM FINAL)
 -- Device: Tecno Camon 40 Pro Optimized (Dimensity 8200)
--- Features: Draggable UI, Anti-Void, Instant Respawn, Daylight BlackSky
+-- Features: Draggable UI, Auto-Revive (Anti-Down), Anti-Void, Daylight BlackSky
 
 local Players = game:GetService("Players")
 local Lighting = game:GetService("Lighting")
@@ -21,7 +21,7 @@ ScreenGui.ResetOnSpawn = false
 local Features = {
     BlackSky = true, WorldReaper = true, StripAll = true, 
     AntiVoid = false, 
-    InfRespawn = false, -- NEW: Instant Respawn Toggle
+    AutoRevive = false, -- NEW: Replaces Infinite Respawn
     NoAnims = true, NoShadows = true, ShowBarriers = false, 
     ShowStats = true, MaxFPS = 60, CullDist = 80, RenderDist = 500
 }
@@ -156,7 +156,7 @@ end
 AddToggle("Black Sky", "BlackSky")
 AddToggle("World Reaper", "WorldReaper")
 AddToggle("Strip All Entities", "StripAll")
-AddToggle("Infinite Respawn", "InfRespawn") -- NEW TOGGLE
+AddToggle("Auto-Revive (Instant)", "AutoRevive") -- NEW AUTO-REVIVE
 AddToggle("Anti-Void Godmode", "AntiVoid") 
 AddToggle("Show Barriers/Hitboxes", "ShowBarriers") 
 AddToggle("Force No Anims", "NoAnims")
@@ -182,14 +182,25 @@ workspace.DescendantAdded:Connect(function(obj)
 end)
 workspace.DescendantRemoving:Connect(function(obj) if CachedParts[obj] then CachedParts[obj] = nil end end)
 
--- Respawn Logic
+-- Auto-Revive Engine (Evade Specific)
 task.spawn(function()
-    while task.wait(0.1) do
-        if Features.InfRespawn and LP.Character then
+    while task.wait(0.2) do
+        if Features.AutoRevive and LP.Character then
             local hum = LP.Character:FindFirstChildOfClass("Humanoid")
-            if hum and hum.Health <= 0 then
-                LP:LoadCharacter() -- Forces a server-side character refresh
-                task.wait(1)
+            local isDowned = false
+            
+            -- Detect Downed state via health or PlatformStand (standard for Evade)
+            if hum then
+                if hum.Health <= 5 or hum.PlatformStand == true then
+                    isDowned = true
+                end
+            end
+            
+            if isDowned then
+                -- Method: Force Character Reload
+                -- This clears the "Downed" status by respawning you instantly
+                LP:LoadCharacter() 
+                task.wait(1.5) -- Cool down to prevent loop spam
             end
         end
     end
@@ -291,4 +302,4 @@ task.spawn(function()
     end
 end)
 
-print("ZENITH PRIME V34.2 (INSTANT RESPAWN) LOADED.")
+print("ZENITH PRIME V34.3 (AUTO-REVIVE) LOADED.")
