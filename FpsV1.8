@@ -1,0 +1,150 @@
+-- DELTA MOBILE: V34.7 ZENITH PRIME (BRUTE FORCE EDITION)
+-- Fixes: Infinite Downed Screen, Persistent Blue Sky
+-- Logic: Multi-Remote Cycling + Atmosphere Nullifier
+
+local Players = game:GetService("Players")
+local Lighting = game:GetService("Lighting")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local CoreGui = game:GetService("CoreGui")
+
+local LP = Players.LocalPlayer
+local totalReaped = 0
+
+local GuiParent = (RunService:IsStudio() and LP.PlayerGui) or (pcall(function() return CoreGui.Name end) and CoreGui) or LP.PlayerGui
+
+local ScreenGui = Instance.new("ScreenGui", GuiParent)
+ScreenGui.Name = "ZenithPrime_V34_7"
+ScreenGui.ResetOnSpawn = false
+
+local Features = {
+    BlackSky = true, WorldReaper = true, StripAll = true, 
+    AntiVoid = false, AutoRevive = false,
+    NoAnims = true, NoShadows = true, ShowBarriers = false, 
+    ShowStats = true, MaxFPS = 60, CullDist = 80, RenderDist = 500
+}
+
+-- ==========================================
+-- UI DRAGGING
+-- ==========================================
+local function MakeDraggable(frame, dragHandle)
+    dragHandle = dragHandle or frame
+    dragHandle.Active = true
+    local dragging, dragStart, startPos
+    dragHandle.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true; dragStart = input.Position; startPos = frame.Position
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            local delta = input.Position - dragStart
+            frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging = false end
+    end)
+end
+
+-- ==========================================
+-- MAIN UI
+-- ==========================================
+local Main = Instance.new("Frame", ScreenGui)
+Main.Size = UDim2.new(0, 230, 0, 480); Main.Position = UDim2.new(0.05, 0, 0.2, 0)
+Main.BackgroundColor3 = Color3.fromRGB(15, 15, 18); Main.BackgroundTransparency = 0.1
+Instance.new("UICorner", Main)
+
+local Title = Instance.new("TextLabel", Main)
+Title.Size = UDim2.new(1, -30, 0, 35); Title.Text = "  ZENITH PRIME V34.7"; Title.TextColor3 = Color3.new(1,1,1)
+Title.BackgroundTransparency = 1; Title.Font = "Code"; Title.TextXAlignment = "Left"; MakeDraggable(Main, Title)
+
+local Scroll = Instance.new("ScrollingFrame", Main)
+Scroll.Size = UDim2.new(1, 0, 1, -40); Scroll.Position = UDim2.new(0, 0, 0, 40)
+Scroll.BackgroundTransparency = 1; Scroll.ScrollBarThickness = 2; Scroll.CanvasSize = UDim2.new(0,0,0,550)
+local Layout = Instance.new("UIListLayout", Scroll); Layout.Padding = UDim.new(0, 6); Layout.HorizontalAlignment = "Center"
+
+local function AddToggle(text, feat)
+    local b = Instance.new("TextButton", Scroll); b.Size = UDim2.new(0.9, 0, 0, 35)
+    b.Font = "Code"; b.TextSize = 13; Instance.new("UICorner", b)
+    local function Update()
+        b.BackgroundColor3 = Features[feat] and Color3.fromRGB(0, 140, 70) or Color3.fromRGB(40, 40, 45)
+        b.Text = text .. (Features[feat] and " [ON]" or " [OFF]")
+    end
+    b.MouseButton1Click:Connect(function() Features[feat] = not Features[feat]; Update() end); Update()
+end
+
+AddToggle("BRUTE REVIVE (BYPASS)", "AutoRevive") 
+AddToggle("BLACK SKY (NULLIFIER)", "BlackSky")
+AddToggle("World Reaper (Plastic)", "WorldReaper")
+AddToggle("Strip Entities", "StripAll")
+AddToggle("Anti-Void Godmode", "AntiVoid") 
+AddToggle("Force No Animations", "NoAnims")
+
+-- ==========================================
+-- BRUTE FORCE REVIVE ENGINE
+-- ==========================================
+task.spawn(function()
+    while task.wait(0.1) do
+        if Features.AutoRevive then
+            local char = LP.Character
+            -- Detect if the "Downed" UI is visible or attribute is set
+            local ui = LP.PlayerGui:FindFirstChild("HUD") and LP.PlayerGui.HUD:FindFirstChild("Downed")
+            local isDowned = (char and char:GetAttribute("Downed")) or (ui and ui.Visible)
+            
+            if isDowned then
+                -- Cycle through all possible remotes used by Evade
+                local events = ReplicatedStorage:FindFirstChild("Events")
+                if events then
+                    pcall(function() events.Respawn:FireServer() end)
+                    pcall(function() events.Revive:FireServer() end)
+                    -- If really stuck, fire the deploy remote
+                    pcall(function() ReplicatedStorage.Events.Deploy:FireServer() end)
+                end
+                task.wait(1) -- Safety delay to prevent server disconnect
+            end
+        end
+    end
+end)
+
+-- ==========================================
+-- BLACK SKY NULLIFIER
+-- ==========================================
+RunService.Heartbeat:Connect(function()
+    if Features.BlackSky then
+        -- Constant override to prevent game from resetting atmosphere
+        Lighting.ClockTime = 0
+        Lighting.Brightness = 0
+        Lighting.OutdoorAmbient = Color3.new(0,0,0)
+        
+        for _, obj in ipairs(Lighting:GetChildren()) do
+            if obj:IsA("Atmosphere") or obj:IsA("Sky") or obj:IsA("Clouds") or obj:IsA("SunRaysEffect") then
+                obj:Destroy()
+                totalReaped = totalReaped + 1
+            end
+        end
+        
+        -- Create our own static sky if none exists
+        if not Lighting:FindFirstChild("ZenithSky") then
+            local s = Instance.new("Sky", Lighting)
+            s.Name = "ZenithSky"
+            s.SkyboxBk, s.SkyboxDn, s.SkyboxFt, s.SkyboxLf, s.SkyboxRt, s.SkyboxUp = "rbxassetid://0","rbxassetid://0","rbxassetid://0","rbxassetid://0","rbxassetid://0","rbxassetid://0"
+            s.SunAngularSize = 0; s.MoonAngularSize = 0
+        end
+    end
+end)
+
+-- STATS HUD
+local StatsFrame = Instance.new("Frame", ScreenGui)
+StatsFrame.Size = UDim2.new(0, 160, 0, 50); StatsFrame.Position = UDim2.new(0, 10, 0, 10)
+StatsFrame.BackgroundColor3 = Color3.new(0, 0, 0); StatsFrame.BackgroundTransparency = 0.5; Instance.new("UICorner", StatsFrame)
+local FPSLabel = Instance.new("TextLabel", StatsFrame); FPSLabel.Size = UDim2.new(1,0,0,25); FPSLabel.TextColor3 = Color3.new(0,1,0); FPSLabel.BackgroundTransparency = 1; FPSLabel.Text = "FPS: ..."
+local ReapLabel = Instance.new("TextLabel", StatsFrame); ReapLabel.Size = UDim2.new(1,0,0,25); ReapLabel.Position = UDim2.new(0,0,0,25); ReapLabel.TextColor3 = Color3.new(0,0.8,1); ReapLabel.BackgroundTransparency = 1; ReapLabel.Text = "REAPED: 0"
+
+RunService.RenderStepped:Connect(function()
+    FPSLabel.Text = "FPS: " .. math.floor(1/RunService.RenderStepped:Wait())
+    ReapLabel.Text = "REAPED: " .. totalReaped
+end)
+
+print("ZENITH PRIME V34.7 LOADED.")
