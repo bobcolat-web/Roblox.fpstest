@@ -1,0 +1,354 @@
+-- DELTA MOBILE: V33.0 ZENITH PRIME (CUSTOM FINAL)
+-- Device: Tecno Camon 40 Pro Optimized (Dimensity 8200)
+-- Fixes: Draggable UI, Daylight BlackSky, Invisible Hitbox Fix (Blue Blocks)
+
+local Players = game:GetService("Players")
+local Lighting = game:GetService("Lighting")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local CoreGui = game:GetService("CoreGui")
+
+local LP = Players.LocalPlayer
+local totalReaped = 0
+
+-- Protection for executors that don't support CoreGui properly
+local GuiParent = (RunService:IsStudio() and LP.PlayerGui) or (pcall(function() return CoreGui.Name end) and CoreGui) or LP.PlayerGui
+
+local ScreenGui = Instance.new("ScreenGui", GuiParent)
+ScreenGui.Name = "ZenithPrimeUI"
+ScreenGui.ResetOnSpawn = false
+
+local Features = {
+    BlackSky = true, WorldReaper = true, StripAll = true, 
+    NoAnims = true, NoShadows = true, ShowBarriers = false, 
+    ShowStats = true, MaxFPS = 60, CullDist = 80, RenderDist = 500
+}
+
+-- ==========================================
+-- UI DRAGGING FUNCTION (Mobile Optimized)
+-- ==========================================
+local function MakeDraggable(frame, dragHandle)
+    dragHandle = dragHandle or frame
+    dragHandle.Active = true
+    local dragging = false
+    local dragStart, startPos
+
+    dragHandle.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = frame.Position
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            local delta = input.Position - dragStart
+            frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
+end
+
+-- ==========================================
+-- 1. DATA MONITOR GUI
+-- ==========================================
+local StatsFrame = Instance.new("Frame", ScreenGui)
+StatsFrame.Size = UDim2.new(0, 160, 0, 70)
+StatsFrame.Position = UDim2.new(0, 10, 0, 10)
+StatsFrame.BackgroundColor3 = Color3.new(0, 0, 0)
+StatsFrame.BackgroundTransparency = 0.5
+StatsFrame.Active = true
+Instance.new("UICorner", StatsFrame)
+
+MakeDraggable(StatsFrame) -- Makes the Stats HUD draggable
+
+local function CreateLabel(parent, pos, text, color)
+    local lbl = Instance.new("TextLabel", parent)
+    lbl.Size = UDim2.new(1, -10, 0, 20)
+    lbl.Position = pos
+    lbl.Text = text
+    lbl.TextColor3 = color
+    lbl.BackgroundTransparency = 1
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.Font = Enum.Font.Code
+    lbl.TextSize = 12
+    return lbl
+end
+
+local FPSLabel = CreateLabel(StatsFrame, UDim2.new(0, 5, 0, 5), "FPS: ...", Color3.new(0, 1, 0))
+local DataLabel = CreateLabel(StatsFrame, UDim2.new(0, 5, 0, 25), "REAPED: 0", Color3.new(0, 0.8, 1))
+local StatusLabel = CreateLabel(StatsFrame, UDim2.new(0, 5, 0, 45), "ZENITH ENGINE: ACTIVE", Color3.new(1, 1, 1))
+StatusLabel.TextSize = 10
+
+-- ==========================================
+-- 2. CONTROL PANEL (Master UI)
+-- ==========================================
+local Main = Instance.new("Frame", ScreenGui)
+Main.Size = UDim2.new(0, 220, 0, 440)
+Main.Position = UDim2.new(0.05, 0, 0.2, 0)
+Main.BackgroundColor3 = Color3.fromRGB(15, 15, 18)
+Main.BackgroundTransparency = 0.1
+Main.BorderSizePixel = 0
+Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 8)
+
+local Mini = Instance.new("TextButton", ScreenGui)
+Mini.Size = UDim2.new(0, 45, 0, 45)
+Mini.Position = UDim2.new(0.05, 0, 0.2, 0)
+Mini.Text = "Z"
+Mini.BackgroundColor3 = Color3.fromRGB(0, 180, 255)
+Mini.TextColor3 = Color3.new(1, 1, 1)
+Mini.Font = Enum.Font.Code
+Mini.TextSize = 20
+Mini.Visible = false
+Instance.new("UICorner", Mini).CornerRadius = UDim.new(1, 0)
+
+local function ToggleGui() 
+    Main.Visible = not Main.Visible
+    Mini.Visible = not Main.Visible 
+end
+
+local Close = Instance.new("TextButton", Main)
+Close.Size = UDim2.new(0, 30, 0, 30)
+Close.Position = UDim2.new(1, -30, 0, 0)
+Close.Text = "X"
+Close.BackgroundColor3 = Color3.fromRGB(180, 0, 0)
+Close.TextColor3 = Color3.new(1, 1, 1)
+Close.Font = Enum.Font.Code
+Close.MouseButton1Click:Connect(ToggleGui)
+Mini.MouseButton1Click:Connect(ToggleGui)
+
+local Title = Instance.new("TextLabel", Main)
+Title.Size = UDim2.new(1, -30, 0, 30)
+Title.Text = " ZENITH PRIME"
+Title.TextColor3 = Color3.new(1, 1, 1)
+Title.BackgroundTransparency = 1
+Title.Font = Enum.Font.Code
+Title.TextXAlignment = Enum.TextXAlignment.Left
+
+-- Make the Main menu draggable by touching the Title text
+MakeDraggable(Main, Title)
+
+local ScrollFrame = Instance.new("ScrollingFrame", Main)
+ScrollFrame.Size = UDim2.new(1, 0, 1, -35)
+ScrollFrame.Position = UDim2.new(0, 0, 0, 35)
+ScrollFrame.BackgroundTransparency = 1
+ScrollFrame.ScrollBarThickness = 4
+ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 420)
+
+local UIListLayout = Instance.new("UIListLayout", ScrollFrame)
+UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+UIListLayout.Padding = UDim.new(0, 5)
+UIListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+
+-- Fixed Slider Component
+local function AddSlider(text, min, max, default, callback)
+    local f = Instance.new("Frame", ScrollFrame)
+    f.Size = UDim2.new(0.9, 0, 0, 40)
+    f.BackgroundTransparency = 1
+
+    local l = Instance.new("TextLabel", f)
+    l.Size = UDim2.new(1, 0, 0, 15)
+    l.Text = text .. ": " .. default
+    l.TextColor3 = Color3.new(1, 1, 1)
+    l.BackgroundTransparency = 1
+    l.Font = Enum.Font.Code
+    l.TextSize = 12
+
+    local back = Instance.new("Frame", f)
+    back.Size = UDim2.new(1, 0, 0, 6)
+    back.Position = UDim2.new(0, 0, 0.7, 0)
+    back.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    Instance.new("UICorner", back).CornerRadius = UDim.new(1, 0)
+
+    local bar = Instance.new("TextButton", back)
+    bar.Size = UDim2.new(0, 16, 0, 16)
+    bar.Position = UDim2.new((default-min)/(max-min), -8, 0.5, -8)
+    bar.Text = ""
+    bar.BackgroundColor3 = Color3.fromRGB(0, 180, 255)
+    Instance.new("UICorner", bar).CornerRadius = UDim.new(1, 0)
+    
+    local dragging = false
+    bar.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = true end
+    end)
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            local pos = input.Position.X
+            local bgPos = back.AbsolutePosition.X
+            local bgSize = back.AbsoluteSize.X
+            local pct = math.clamp((pos - bgPos) / bgSize, 0, 1)
+            bar.Position = UDim2.new(pct, -8, 0.5, -8)
+            local val = math.floor(min + (pct * (max - min)))
+            l.Text = text .. ": " .. val
+            callback(val)
+        end
+    end)
+end
+
+-- Fixed Toggle Component
+local function AddToggle(text, feat)
+    local b = Instance.new("TextButton", ScrollFrame)
+    b.Size = UDim2.new(0.9, 0, 0, 30)
+    b.Font = Enum.Font.Code
+    b.TextSize = 14
+    Instance.new("UICorner", b).CornerRadius = UDim.new(0, 4)
+
+    local function Update()
+        b.BackgroundColor3 = Features[feat] and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(60, 60, 70)
+        b.Text = text .. (Features[feat] and " [ON]" or " [OFF]")
+    end
+    b.MouseButton1Click:Connect(function() Features[feat] = not Features[feat]; Update() end)
+    Update()
+end
+
+AddToggle("Black Sky", "BlackSky")
+AddToggle("World Reaper", "WorldReaper")
+AddToggle("Strip All Entities", "StripAll")
+AddToggle("Show Barriers/Hitboxes", "ShowBarriers") -- NEW TOGGLE FOR BLUE BLOCKS
+AddToggle("Force No Anims", "NoAnims")
+AddToggle("Disable Shadows", "NoShadows")
+AddToggle("Data Stats HUD", "ShowStats")
+AddSlider("FPS CAP", 30, 120, 60, function(v) Features.MaxFPS = v; if setfpscap then setfpscap(v) end end)
+AddSlider("PLAYER CULL", 20, 300, 80, function(v) Features.CullDist = v end)
+AddSlider("RENDER DIST", 100, 2000, 500, function(v) Features.RenderDist = v end)
+
+-- ==========================================
+-- 3. CORE ENGINES (Optimized)
+-- ==========================================
+
+-- Cache System: Records Original Transparency to prevent blue blocks!
+local CachedParts = {}
+local function CacheObject(obj)
+    if obj:IsA("BasePart") then
+        CachedParts[obj] = obj.Transparency -- Saves original state
+    end
+end
+
+for _, obj in ipairs(workspace:GetDescendants()) do CacheObject(obj) end
+workspace.DescendantAdded:Connect(function(obj)
+    CacheObject(obj)
+    if Features.StripAll and (obj:IsA("Accessory") or obj:IsA("Clothing") or obj:IsA("Trail") or obj:IsA("Texture")) then
+        task.defer(function() pcall(function() obj:Destroy() end); totalReaped = totalReaped + 1 end)
+    end
+end)
+workspace.DescendantRemoving:Connect(function(obj) if CachedParts[obj] then CachedParts[obj] = nil end end)
+
+-- ENGINE ALPHA: Stats & FPS
+local lastTick, frameCount = tick(), 0
+RunService.RenderStepped:Connect(function()
+    frameCount = frameCount + 1
+    local currentTick = tick()
+    if currentTick - lastTick >= 1 then
+        if Features.ShowStats then
+            FPSLabel.Text = "FPS: " .. math.floor(frameCount / (currentTick - lastTick))
+            DataLabel.Text = "REAPED: " .. totalReaped
+        end
+        frameCount, lastTick = 0, currentTick
+    end
+    StatsFrame.Visible = Features.ShowStats
+end)
+
+-- ENGINE BETA: Environment Purge & Daylight-BlackSky
+task.spawn(function()
+    while task.wait(1) do
+        Lighting.FogEnd = 1000000
+        Lighting.FogStart = 1000000
+        Lighting.ClockTime = 14 -- Bright Daylight Ground
+        Lighting.Brightness = 3
+        Lighting.GlobalShadows = not Features.NoShadows
+        
+        if Features.BlackSky then
+            local sky = Lighting:FindFirstChild("ZenithVoid") or Instance.new("Sky", Lighting)
+            sky.Name = "ZenithVoid"
+            sky.SkyboxBk, sky.SkyboxDn, sky.SkyboxFt, sky.SkyboxLf, sky.SkyboxRt, sky.SkyboxUp = "rbxassetid://0","rbxassetid://0","rbxassetid://0","rbxassetid://0","rbxassetid://0","rbxassetid://0"
+            sky.SunAngularSize, sky.MoonAngularSize, sky.StarCount = 0, 0, 0
+            
+            for _, obj in ipairs(Lighting:GetChildren()) do
+                if (obj:IsA("Sky") and obj.Name ~= "ZenithVoid") or obj:IsA("Atmosphere") or obj:IsA("Clouds") then
+                    obj:Destroy()
+                    totalReaped = totalReaped + 1
+                elseif obj:IsA("PostEffect") or obj:IsA("BloomEffect") then
+                    obj.Enabled = false
+                end
+            end
+        else
+            if Lighting:FindFirstChild("ZenithVoid") then Lighting.ZenithVoid:Destroy() end
+        end
+
+        if Features.NoAnims then
+            for _, p in ipairs(Players:GetPlayers()) do
+                if p ~= LP and p.Character then
+                    local anim = p.Character:FindFirstChildOfClass("Humanoid") and p.Character.Humanoid:FindFirstChildOfClass("Animator")
+                    if anim then for _, t in ipairs(anim:GetPlayingAnimationTracks()) do t:Stop(0) end end
+                end
+            end
+        end
+    end
+end)
+
+-- ENGINE GAMMA: Culling System (Fixes Blue Blocks)
+task.spawn(function()
+    while task.wait(0.2) do
+        local char = LP.Character
+        local root = char and char:FindFirstChild("HumanoidRootPart")
+        if root then
+            local rPos = root.Position
+            local yields = 0
+            
+            for v, originalTrans in pairs(CachedParts) do
+                yields = yields + 1
+                if yields % 300 == 0 then RunService.Heartbeat:Wait() end
+                
+                if v and v.Parent and not v:FindFirstAncestor("Nextbots") then
+                    local dist = (v.Position - rPos).Magnitude
+                    local targetTrans
+                    
+                    if dist > Features.RenderDist then
+                        targetTrans = 1 -- Hide because it's far away
+                    else
+                        -- Fix for the Blue Blocks: Returns to original invisibility!
+                        targetTrans = Features.ShowBarriers and 0 or originalTrans
+                    end
+                    
+                    if v.Transparency ~= targetTrans then
+                        v.Transparency = targetTrans
+                    end
+                    
+                    if Features.WorldReaper and targetTrans < 1 then
+                        if v.Material ~= Enum.Material.Plastic then v.Material = Enum.Material.Plastic end
+                        if v.CastShadow == Features.NoShadows then v.CastShadow = not Features.NoShadows end
+                    end
+                end
+            end
+            
+            -- Player Entity Culling
+            for _, p in ipairs(Players:GetPlayers()) do
+                if p ~= LP and p.Character then
+                    local pRoot = p.Character:FindFirstChild("HumanoidRootPart")
+                    local pDist = pRoot and (rPos - pRoot.Position).Magnitude or 0
+                    local shouldHide = (pDist > Features.CullDist)
+                    for _, vp in ipairs(p.Character:GetDescendants()) do
+                        if vp:IsA("BasePart") and vp.Name ~= "HumanoidRootPart" then
+                            vp.Transparency = shouldHide and 1 or 0
+                        elseif Features.StripAll and (vp:IsA("Accessory") or vp:IsA("Clothing") or vp:IsA("Trail") or vp:IsA("Texture")) then
+                            vp:Destroy()
+                            totalReaped = totalReaped + 1
+                        end
+                    end
+                end
+            end
+            
+        end
+    end
+end)
+
+print("ZENITH PRIME V33.0 (DRAGGABLE + BLUE BLOCK FIX) LOADED.")
