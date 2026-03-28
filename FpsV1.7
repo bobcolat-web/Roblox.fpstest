@@ -1,0 +1,222 @@
+-- DELTA MOBILE: V34.6 ZENITH PRIME (zReal-King Port)
+-- Device: Tecno Camon 40 Pro Optimized (Dimensity 8200)
+-- Fixes: Instant Respawn Remote, Force BlackSky, Atmosphere Delete
+
+local Players = game:GetService("Players")
+local Lighting = game:GetService("Lighting")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local CoreGui = game:GetService("CoreGui")
+
+local LP = Players.LocalPlayer
+local totalReaped = 0
+
+-- UI Parent Protection
+local GuiParent = (RunService:IsStudio() and LP.PlayerGui) or (pcall(function() return CoreGui.Name end) and CoreGui) or LP.PlayerGui
+
+local ScreenGui = Instance.new("ScreenGui", GuiParent)
+ScreenGui.Name = "ZenithPrimeUI_V34_6"
+ScreenGui.ResetOnSpawn = false
+
+local Features = {
+    BlackSky = true, WorldReaper = true, StripAll = true, 
+    AntiVoid = false, 
+    AutoRevive = false, -- The zReal-King Instant Respawn
+    NoAnims = true, NoShadows = true, ShowBarriers = false, 
+    ShowStats = true, MaxFPS = 60, CullDist = 80, RenderDist = 500
+}
+
+-- ==========================================
+-- UI DRAGGING
+-- ==========================================
+local function MakeDraggable(frame, dragHandle)
+    dragHandle = dragHandle or frame
+    dragHandle.Active = true
+    local dragging, dragStart, startPos
+    dragHandle.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true; dragStart = input.Position; startPos = frame.Position
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            local delta = input.Position - dragStart
+            frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging = false end
+    end)
+end
+
+-- ==========================================
+-- HUD
+-- ==========================================
+local StatsFrame = Instance.new("Frame", ScreenGui)
+StatsFrame.Size = UDim2.new(0, 160, 0, 75); StatsFrame.Position = UDim2.new(0, 10, 0, 10)
+StatsFrame.BackgroundColor3 = Color3.new(0, 0, 0); StatsFrame.BackgroundTransparency = 0.5
+Instance.new("UICorner", StatsFrame)
+MakeDraggable(StatsFrame)
+
+local function CreateLabel(parent, pos, text, color)
+    local lbl = Instance.new("TextLabel", parent)
+    lbl.Size = UDim2.new(1, -10, 0, 18); lbl.Position = pos; lbl.Text = text
+    lbl.TextColor3 = color; lbl.BackgroundTransparency = 1; lbl.TextXAlignment = "Left"; lbl.Font = "Code"; lbl.TextSize = 11
+    return lbl
+end
+
+local FPSLabel = CreateLabel(StatsFrame, UDim2.new(0, 8, 0, 5), "FPS: ...", Color3.new(0, 1, 0))
+local DataLabel = CreateLabel(StatsFrame, UDim2.new(0, 8, 0, 23), "REAPED: 0", Color3.new(0, 0.8, 1))
+local RemoteLabel = CreateLabel(StatsFrame, UDim2.new(0, 8, 0, 41), "REMOTES: READY", Color3.new(1, 0.8, 0))
+local StatusLabel = CreateLabel(StatsFrame, UDim2.new(0, 8, 0, 57), "ZENITH V34.6", Color3.new(1, 1, 1))
+
+-- ==========================================
+-- MASTER CONTROL PANEL
+-- ==========================================
+local Main = Instance.new("Frame", ScreenGui)
+Main.Size = UDim2.new(0, 230, 0, 480); Main.Position = UDim2.new(0.05, 0, 0.2, 0)
+Main.BackgroundColor3 = Color3.fromRGB(15, 15, 18); Main.BackgroundTransparency = 0.1
+Instance.new("UICorner", Main)
+
+local Mini = Instance.new("TextButton", ScreenGui)
+Mini.Size = UDim2.new(0, 45, 0, 45); Mini.Position = UDim2.new(0.05, 0, 0.2, 0)
+Mini.Text = "Z"; Mini.BackgroundColor3 = Color3.fromRGB(0, 180, 255); Mini.TextColor3 = Color3.new(1,1,1)
+Mini.Visible = false; Instance.new("UICorner", Mini).CornerRadius = UDim.new(1,0)
+
+local function ToggleGui() Main.Visible = not Main.Visible; Mini.Visible = not Main.Visible end
+Mini.MouseButton1Click:Connect(ToggleGui)
+
+local Title = Instance.new("TextLabel", Main)
+Title.Size = UDim2.new(1, -30, 0, 35); Title.Text = "  ZENITH PRIME V34.6"; Title.TextColor3 = Color3.new(1,1,1)
+Title.BackgroundTransparency = 1; Title.Font = "Code"; Title.TextXAlignment = "Left"; MakeDraggable(Main, Title)
+
+local Close = Instance.new("TextButton", Main)
+Close.Size = UDim2.new(0, 30, 0, 30); Close.Position = UDim2.new(1, -35, 0, 2); Close.Text = "X"
+Close.BackgroundColor3 = Color3.fromRGB(180, 0, 0); Close.MouseButton1Click:Connect(ToggleGui)
+
+local Scroll = Instance.new("ScrollingFrame", Main)
+Scroll.Size = UDim2.new(1, 0, 1, -40); Scroll.Position = UDim2.new(0, 0, 0, 40)
+Scroll.BackgroundTransparency = 1; Scroll.ScrollBarThickness = 2; Scroll.CanvasSize = UDim2.new(0,0,0,550)
+local Layout = Instance.new("UIListLayout", Scroll); Layout.Padding = UDim.new(0, 6); Layout.HorizontalAlignment = "Center"
+
+local function AddToggle(text, feat)
+    local b = Instance.new("TextButton", Scroll); b.Size = UDim2.new(0.9, 0, 0, 35)
+    b.Font = "Code"; b.TextSize = 13; Instance.new("UICorner", b)
+    local function Update()
+        b.BackgroundColor3 = Features[feat] and Color3.fromRGB(0, 140, 70) or Color3.fromRGB(40, 40, 45)
+        b.Text = text .. (Features[feat] and " [ON]" or " [OFF]")
+    end
+    b.MouseButton1Click:Connect(function() Features[feat] = not Features[feat]; Update() end); Update()
+end
+
+local function AddSlider(text, min, max, default, callback)
+    local f = Instance.new("Frame", Scroll); f.Size = UDim2.new(0.9, 0, 0, 45); f.BackgroundTransparency = 1
+    local l = Instance.new("TextLabel", f); l.Size = UDim2.new(1, 0, 0, 20); l.Text = text..": "..default
+    l.TextColor3 = Color3.new(1,1,1); l.BackgroundTransparency = 1; l.Font = "Code"; l.TextSize = 12
+    local back = Instance.new("Frame", f); back.Size = UDim2.new(1, 0, 0, 4); back.Position = UDim2.new(0,0,0.7,0)
+    back.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2); local bar = Instance.new("Frame", back)
+    bar.Size = UDim2.new((default-min)/(max-min), 0, 1, 0); bar.BackgroundColor3 = Color3.new(0, 0.7, 1)
+    local btn = Instance.new("TextButton", f); btn.Size = UDim2.new(1,0,1,0); btn.BackgroundTransparency = 1; btn.Text = ""
+    btn.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.Touch or i.UserInputType == Enum.UserInputType.MouseButton1 then
+        local move; move = UserInputService.InputChanged:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseMovement then
+                local pct = math.clamp((input.Position.X - back.AbsolutePosition.X) / back.AbsoluteSize.X, 0, 1)
+                bar.Size = UDim2.new(pct, 0, 1, 0); local val = math.floor(min + (pct * (max - min)))
+                l.Text = text..": "..val; callback(val)
+            end
+        end)
+        UserInputService.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then move:Disconnect() end end)
+    end end)
+end
+
+-- ==========================================
+-- FEATURE LIST
+-- ==========================================
+AddToggle("INSTANT AUTO-REVIVE", "AutoRevive") 
+AddToggle("BLACK SKY (FORCE)", "BlackSky")
+AddToggle("World Reaper (Plastic)", "WorldReaper")
+AddToggle("Strip Entities", "StripAll")
+AddToggle("Anti-Void Godmode", "AntiVoid") 
+AddToggle("Show Hitboxes/Barriers", "ShowBarriers") 
+AddToggle("Force No Animations", "NoAnims")
+AddToggle("Disable Shadows", "NoShadows")
+AddToggle("Show Data HUD", "ShowStats")
+AddSlider("FPS CAP", 30, 120, 60, function(v) Features.MaxFPS = v; if setfpscap then setfpscap(v) end end)
+AddSlider("ENTITY CULL", 20, 300, 80, function(v) Features.CullDist = v end)
+AddSlider("RENDER DIST", 100, 2500, 500, function(v) Features.RenderDist = v end)
+
+-- ==========================================
+-- THE zREAL-KING RESPOND LOGIC
+-- ==========================================
+task.spawn(function()
+    while task.wait() do -- Fast loop
+        if Features.AutoRevive and LP.Character then
+            local char = LP.Character
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            
+            -- zReal-King Method: Check for 'Downed' state or 'Dead' state
+            if char:GetAttribute("Downed") or (hum and hum.Health <= 0) or (hum and hum.PlatformStand) then
+                local events = ReplicatedStorage:FindFirstChild("Events")
+                if events and events:FindFirstChild("Respawn") then
+                    events.Respawn:FireServer()
+                    task.wait(0.5) -- Fast respawn cooldown
+                end
+            end
+        end
+    end
+end)
+
+-- ==========================================
+-- FORCED BLACK SKY & LIGHTING CLEANER
+-- ==========================================
+task.spawn(function()
+    while task.wait(0.5) do
+        if Features.BlackSky then
+            -- Force Lighting Settings
+            Lighting.ClockTime = 0
+            Lighting.Brightness = 0
+            Lighting.GlobalShadows = false
+            Lighting.ExposureCompensation = -1
+            Lighting.FogEnd = 0
+            Lighting.OutdoorAmbient = Color3.new(0,0,0)
+
+            -- Remove Obstacles (Atmosphere/Sun)
+            for _, v in pairs(Lighting:GetChildren()) do
+                if v:IsA("Sky") or v:IsA("Atmosphere") or v:IsA("Clouds") or v:IsA("SunRaysEffect") then
+                    v:Destroy()
+                    totalReaped = totalReaped + 1
+                end
+            end
+
+            -- Create Zenith Skybox
+            local sky = Instance.new("Sky", Lighting)
+            sky.Name = "ZenithVoid"
+            sky.SkyboxBk, sky.SkyboxDn, sky.SkyboxFt, sky.SkyboxLf, sky.SkyboxRt, sky.SkyboxUp = "rbxassetid://0","rbxassetid://0","rbxassetid://0","rbxassetid://0","rbxassetid://0","rbxassetid://0"
+            sky.SunAngularSize = 0; sky.MoonAngularSize = 0
+        end
+    end
+end)
+
+-- STATS HUD
+RunService.RenderStepped:Connect(function()
+    if Features.ShowStats then
+        FPSLabel.Text = "FPS: " .. math.floor(1/RunService.RenderStepped:Wait())
+        DataLabel.Text = "REAPED: " .. totalReaped
+    end
+    StatsFrame.Visible = Features.ShowStats
+end)
+
+-- CULLING & ANTI-VOID
+task.spawn(function()
+    while task.wait(0.3) do
+        local root = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+        if root then
+            if Features.AntiVoid and root.Position.Y < -60 then
+                root.CFrame = CFrame.new(0, 50, 0); root.Velocity = Vector3.zero
+            end
+        end
+    end
+end)
+
+print("ZENITH PRIME V34.6 (zReal-King Fix) LOADED.")
