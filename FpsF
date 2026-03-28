@@ -1,0 +1,207 @@
+-- DELTA MOBILE: V34.9 ZENITH PRIME (ULTIMATE OPTIMIZED)
+-- Device: Tecno Camon 40 Pro (Dimensity 8200)
+-- Logic: Parallel Culling + Observer-Based Revive + Atmosphere Nullifier
+
+local Players = game:GetService("Players")
+local Lighting = game:GetService("Lighting")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local CoreGui = game:GetService("CoreGui")
+
+local LP = Players.LocalPlayer
+local totalReaped = 0
+
+-- UI Initialization
+local GuiParent = (RunService:IsStudio() and LP.PlayerGui) or (pcall(function() return CoreGui.Name end) and CoreGui) or LP.PlayerGui
+local ScreenGui = Instance.new("ScreenGui", GuiParent)
+ScreenGui.Name = "Zenith_V34_9"
+ScreenGui.ResetOnSpawn = false
+
+local Features = {
+    BlackSky = true, WorldReaper = true, StripAll = true, 
+    AutoRevive = true, MicroHitbox = false,
+    NoAnims = true, NoShadows = true, ShowBarriers = false, 
+    ShowStats = true, RenderDist = 500, MaxFPS = 60
+}
+
+-- ==========================================
+-- UI ENGINE (Lag-Free Dragging)
+-- ==========================================
+local function MakeDraggable(frame, handle)
+    handle = handle or frame
+    local dragging, startPos, dragStart
+    handle.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.Touch or i.UserInputType == Enum.UserInputType.MouseButton1 then dragging = true; dragStart = i.Position; startPos = frame.Position end end)
+    UserInputService.InputChanged:Connect(function(i) if dragging and (i.UserInputType == Enum.UserInputType.Touch or i.UserInputType == Enum.UserInputType.MouseMovement) then
+        local delta = i.Position - dragStart
+        frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end end)
+    UserInputService.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.Touch or i.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end end)
+end
+
+-- ==========================================
+-- SMART BLACK SKY (Observer Mode)
+-- ==========================================
+local function ForceBlackSky()
+    if not Features.BlackSky then return end
+    Lighting.ClockTime = 0
+    Lighting.Brightness = 0
+    Lighting.ExposureCompensation = -1.5
+    Lighting.OutdoorAmbient = Color3.new(0,0,0)
+    
+    for _, obj in ipairs(Lighting:GetChildren()) do
+        if obj:IsA("Atmosphere") or obj:IsA("Sky") or obj:IsA("Clouds") or obj:IsA("SunRaysEffect") then
+            if obj.Name ~= "ZenithSky" then obj:Destroy(); totalReaped = totalReaped + 1 end
+        end
+    end
+    
+    if not Lighting:FindFirstChild("ZenithSky") then
+        local s = Instance.new("Sky", Lighting); s.Name = "ZenithSky"
+        s.SkyboxBk, s.SkyboxDn, s.SkyboxFt, s.SkyboxLf, s.SkyboxRt, s.SkyboxUp = "rbxassetid://0","rbxassetid://0","rbxassetid://0","rbxassetid://0","rbxassetid://0","rbxassetid://0"
+        s.SunAngularSize, s.MoonAngularSize = 0, 0
+    end
+end
+
+Lighting.ChildAdded:Connect(function() if Features.BlackSky then task.defer(ForceBlackSky) end end)
+
+-- ==========================================
+-- INSTANT REVIVE (Observer Mode)
+-- ==========================================
+local function TriggerRevive()
+    if not Features.AutoRevive then return end
+    local ev = ReplicatedStorage:FindFirstChild("Events")
+    if ev then
+        pcall(function() ev.Respawn:FireServer() end)
+        pcall(function() ev.Revive:FireServer() end)
+        pcall(function() ev.Deploy:FireServer() end)
+    end
+end
+
+-- Watch for character changes or UI appearing
+LP.CharacterAdded:Connect(function(char)
+    char:GetAttributeChangedSignal("Downed"):Connect(function()
+        if char:GetAttribute("Downed") == true then TriggerRevive() end
+    end)
+end)
+
+-- ==========================================
+-- THE OPTIMIZED CULLING ENGINE (Chunked)
+-- ==========================================
+local CachedParts = {}
+local currentIdx = 1
+
+task.spawn(function()
+    while true do
+        local root = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+        if root and #CachedParts > 0 then
+            local rPos = root.Position
+            -- Process 150 parts per frame to prevent stutter
+            for i = 1, 150 do
+                currentIdx = (currentIdx % #CachedParts) + 1
+                local v = CachedParts[currentIdx]
+                if v and v.obj and v.obj.Parent then
+                    local dist = (v.obj.Position - rPos).Magnitude
+                    local target = (dist > Features.RenderDist) and 1 or (Features.ShowBarriers and 0 or v.orig)
+                    
+                    if v.obj.Transparency ~= target then v.obj.Transparency = target end
+                    if Features.WorldReaper and target < 1 then
+                        if v.obj.Material ~= Enum.Material.Plastic then v.obj.Material = Enum.Material.Plastic end
+                    end
+                end
+            end
+        end
+        RunService.Heartbeat:Wait()
+    end
+end)
+
+workspace.DescendantAdded:Connect(function(obj)
+    if obj:IsA("BasePart") then
+        table.insert(CachedParts, {obj = obj, orig = obj.Transparency})
+    end
+    if Features.StripAll and (obj:IsA("Accessory") or obj:IsA("Clothing") or obj:IsA("Trail") or obj:IsA("Texture")) then
+        task.defer(function() obj:Destroy(); totalReaped = totalReaped + 1 end)
+    end
+end)
+
+-- Initial Cache
+for _, obj in ipairs(workspace:GetDescendants()) do 
+    if obj:IsA("BasePart") then table.insert(CachedParts, {obj = obj, orig = obj.Transparency}) end 
+end
+
+-- ==========================================
+-- MASTER CONTROL PANEL
+-- ==========================================
+local Main = Instance.new("Frame", ScreenGui)
+Main.Size = UDim2.new(0, 220, 0, 420); Main.Position = UDim2.new(0.5, -110, 0.5, -210)
+Main.BackgroundColor3 = Color3.fromRGB(15, 15, 18); Instance.new("UICorner", Main)
+
+local Title = Instance.new("TextLabel", Main); Title.Size = UDim2.new(1,0,0,35); Title.Text = "ZENITH PRIME V34.9"
+Title.TextColor3 = Color3.new(1,1,1); Title.BackgroundTransparency = 1; MakeDraggable(Main, Title)
+
+local Scroll = Instance.new("ScrollingFrame", Main); Scroll.Size = UDim2.new(1,0,1,-40); Scroll.Position = UDim2.new(0,0,0,40)
+Scroll.BackgroundTransparency = 1; Scroll.CanvasSize = UDim2.new(0,0,0,500); Scroll.ScrollBarThickness = 2
+local layout = Instance.new("UIListLayout", Scroll); layout.HorizontalAlignment = "Center"; layout.Padding = UDim.new(0,6)
+
+local function AddToggle(text, feat)
+    local b = Instance.new("TextButton", Scroll); b.Size = UDim2.new(0.9,0,0,32); b.Font = "Code"
+    Instance.new("UICorner", b)
+    local function Update()
+        b.BackgroundColor3 = Features[feat] and Color3.fromRGB(0, 180, 100) or Color3.fromRGB(40, 40, 45)
+        b.Text = text .. (Features[feat] and " [ON]" or " [OFF]")
+    end
+    b.MouseButton1Click:Connect(function() 
+        Features[feat] = not Features[feat]; Update()
+        if feat == "BlackSky" then ForceBlackSky() end
+    end); Update()
+end
+
+AddToggle("INSTANT REVIVE", "AutoRevive")
+AddToggle("BLACK SKY (FORCE)", "BlackSky")
+AddToggle("MICRO HITBOX", "MicroHitbox")
+AddToggle("WORLD REAPER", "WorldReaper")
+AddToggle("SHOW BARRIERS", "ShowBarriers")
+AddToggle("STRIP ENTITIES", "StripAll")
+AddToggle("FORCE NO ANIMS", "NoAnims")
+AddToggle("DISABLE SHADOWS", "NoShadows")
+
+-- ==========================================
+-- CHARACTER ENGINE (HITBOX/ANIMS)
+-- ==========================================
+local origSizes = {}
+task.spawn(function()
+    while task.wait(0.5) do
+        local char = LP.Character
+        if char then
+            if Features.MicroHitbox then
+                for _, p in ipairs(char:GetChildren()) do
+                    if p:IsA("BasePart") and p.Name ~= "HumanoidRootPart" then
+                        if not origSizes[p] then origSizes[p] = p.Size end
+                        p.Size = origSizes[p] * 0.3
+                    end
+                end
+            elseif next(origSizes) then
+                for p, s in pairs(origSizes) do if p.Parent then p.Size = s end end
+                table.clear(origSizes)
+            end
+            
+            if Features.NoAnims then
+                local hum = char:FindFirstChildOfClass("Humanoid")
+                if hum then for _, t in ipairs(hum:GetPlayingAnimationTracks()) do t:Stop(0) end end
+            end
+        end
+    end
+end)
+
+-- STATS HUD
+local HUD = Instance.new("Frame", ScreenGui); HUD.Size = UDim2.new(0,130,0,45); HUD.Position = UDim2.new(0,10,0,10)
+HUD.BackgroundColor3 = Color3.new(0,0,0); HUD.BackgroundTransparency = 0.5; Instance.new("UICorner", HUD); MakeDraggable(HUD)
+local F = Instance.new("TextLabel", HUD); F.Size = UDim2.new(1,0,0,22); F.TextColor3 = Color3.new(0,1,0); F.Text = "FPS: ..."; F.BackgroundTransparency = 1
+local R = Instance.new("TextLabel", HUD); R.Size = UDim2.new(1,0,0,22); R.Position = UDim2.new(0,0,0,22); R.TextColor3 = Color3.new(0,0.8,1); R.Text = "REAPED: 0"; R.BackgroundTransparency = 1
+
+RunService.RenderStepped:Connect(function()
+    F.Text = "FPS: " .. math.floor(1/RunService.RenderStepped:Wait())
+    R.Text = "REAPED: " .. totalReaped
+end)
+
+ForceBlackSky()
+print("ZENITH PRIME V34.9 ULTIMATE LOADED.")
