@@ -1,0 +1,173 @@
+-- Simplified Evade Revive Utility
+-- Optimized for Mobile & Minimalist Use
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local LocalPlayer = Players.LocalPlayer
+
+-- UI Configuration
+local UI_TITLE = "Revive Pro"
+local ACCENT_COLOR = Color3.fromRGB(0, 255, 127)
+local BG_COLOR = Color3.fromRGB(30, 30, 30)
+
+-- State
+local autoReviveEnabled = false
+local isMinimized = false
+
+-- Create UI
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "EvadeReviveUI"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 180, 0, 140)
+MainFrame.Position = UDim2.new(0.5, -90, 0.4, 0)
+MainFrame.BackgroundColor3 = BG_COLOR
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.Draggable = true -- Legacy support for mobile dragging
+MainFrame.Parent = ScreenGui
+
+-- Corner Rounding
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 8)
+UICorner.Parent = MainFrame
+
+-- Header
+local Header = Instance.new("Frame")
+Header.Name = "Header"
+Header.Size = UDim2.new(1, 0, 0, 30)
+Header.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+Header.BorderSizePixel = 0
+Header.Parent = MainFrame
+
+local HeaderCorner = Instance.new("UICorner")
+HeaderCorner.CornerRadius = UDim.new(0, 8)
+HeaderCorner.Parent = Header
+
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, -40, 1, 0)
+Title.Position = UDim2.new(0, 10, 0, 0)
+Title.BackgroundTransparency = 1
+Title.Text = UI_TITLE
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextSize = 14
+Title.Font = Enum.Font.GothamBold
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Parent = Header
+
+local MinButton = Instance.new("TextButton")
+MinButton.Size = UDim2.new(0, 25, 0, 25)
+MinButton.Position = UDim2.new(1, -30, 0, 2)
+MinButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+MinButton.Text = "-"
+MinButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+MinButton.Parent = Header
+
+-- Content Container
+local Content = Instance.new("Frame")
+Content.Name = "Content"
+Content.Size = UDim2.new(1, 0, 1, -30)
+Content.Position = UDim2.new(0, 0, 0, 30)
+Content.BackgroundTransparency = 1
+Content.Parent = MainFrame
+
+-- Manual Revive Button
+local ReviveBtn = Instance.new("TextButton")
+ReviveBtn.Name = "ReviveBtn"
+ReviveBtn.Size = UDim2.new(0.9, 0, 0, 35)
+ReviveBtn.Position = UDim2.new(0.05, 0, 0.1, 0)
+ReviveBtn.BackgroundColor3 = ACCENT_COLOR
+ReviveBtn.Text = "Revive Now"
+ReviveBtn.TextColor3 = Color3.fromRGB(0, 0, 0)
+ReviveBtn.Font = Enum.Font.GothamBold
+ReviveBtn.TextSize = 14
+ReviveBtn.Parent = Content
+
+local BtnCorner = Instance.new("UICorner")
+BtnCorner.CornerRadius = UDim.new(0, 6)
+BtnCorner.Parent = ReviveBtn
+
+-- Auto Revive Toggle
+local ToggleBtn = Instance.new("TextButton")
+ToggleBtn.Name = "ToggleBtn"
+ToggleBtn.Size = UDim2.new(0.9, 0, 0, 35)
+ToggleBtn.Position = UDim2.new(0.05, 0, 0.5, 0)
+ToggleBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+ToggleBtn.Text = "Auto Revive: OFF"
+ToggleBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+ToggleBtn.Font = Enum.Font.Gotham
+ToggleBtn.TextSize = 12
+ToggleBtn.Parent = Content
+
+local ToggleCorner = Instance.new("UICorner")
+ToggleCorner.CornerRadius = UDim.new(0, 6)
+ToggleCorner.Parent = ToggleBtn
+
+-- Core Logic Functions
+local function triggerRevive()
+    local character = LocalPlayer.Character
+    if character and character:GetAttribute("Downed") then
+        local event = ReplicatedStorage:FindFirstChild("Events")
+            and ReplicatedStorage.Events:FindFirstChild("Player")
+            and ReplicatedStorage.Events.Player:FindFirstChild("ChangePlayerMode")
+        
+        if event then
+            event:FireServer(true)
+        end
+    end
+end
+
+-- Interactions
+ReviveBtn.MouseButton1Click:Connect(function()
+    triggerRevive()
+end)
+
+ToggleBtn.MouseButton1Click:Connect(function()
+    autoReviveEnabled = not autoReviveEnabled
+    if autoReviveEnabled then
+        ToggleBtn.Text = "Auto Revive: ON"
+        ToggleBtn.BackgroundColor3 = Color3.fromRGB(0, 100, 50)
+        ToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    else
+        ToggleBtn.Text = "Auto Revive: OFF"
+        ToggleBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+        ToggleBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+    end
+end)
+
+MinButton.MouseButton1Click:Connect(function()
+    isMinimized = not isMinimized
+    if isMinimized then
+        Content.Visible = false
+        MainFrame.Size = UDim2.new(0, 180, 0, 30)
+        MinButton.Text = "+"
+    else
+        Content.Visible = true
+        MainFrame.Size = UDim2.new(0, 180, 0, 140)
+        MinButton.Text = "-"
+    end
+end)
+
+-- Main Loop
+RunService.Heartbeat:Connect(function()
+    if autoReviveEnabled then
+        triggerRevive()
+    end
+end)
+
+-- Notification
+local function notify(msg)
+    game:GetService("StarterGui"):SetCore("SendNotification", {
+        Title = "Evade Script",
+        Text = msg,
+        Duration = 3
+    })
+end
+
+notify("Revive Script Loaded!")
