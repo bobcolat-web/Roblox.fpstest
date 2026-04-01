@@ -1,0 +1,1115 @@
+-- ╔══════════════════════════════════════════════════╗
+-- ║          PHANTOM FPS BOOSTER  v1.0               ║
+-- ║   Material Selector • Bug Fixed • More Features  ║
+-- ╚══════════════════════════════════════════════════╝
+
+-- ══════════════════════════════════
+--  SERVICES
+-- ══════════════════════════════════
+local Players          = game:GetService("Players")
+local RunService       = game:GetService("RunService")
+local Lighting         = game:GetService("Lighting")
+local TweenService     = game:GetService("TweenService")
+local StarterGui       = game:GetService("StarterGui")
+local SoundService     = game:GetService("SoundService")
+
+local LocalPlayer  = Players.LocalPlayer
+local PlayerGui    = LocalPlayer:WaitForChild("PlayerGui")
+
+-- ══════════════════════════════════
+--  CONSTANTS / THEME
+-- ══════════════════════════════════
+local ACCENT    = Color3.fromRGB(0, 195, 255)
+local BG_DARK   = Color3.fromRGB(9,  9,  14)
+local BG_MID    = Color3.fromRGB(13, 13, 20)
+local BG_CARD   = Color3.fromRGB(15, 15, 23)
+local BG_BTN    = Color3.fromRGB(20, 20, 34)
+local STR_OFF   = Color3.fromRGB(27, 27, 44)
+local STR_ON    = Color3.fromRGB(0,  125, 175)
+local TXT_MAIN  = Color3.fromRGB(210, 222, 245)
+local TXT_SUB   = Color3.fromRGB(75,  88, 120)
+local GREEN     = Color3.fromRGB(0,  195, 105)
+local YELLOW    = Color3.fromRGB(255, 195, 0)
+local RED       = Color3.fromRGB(220,  50,  65)
+
+-- ══════════════════════════════════
+--  STATE
+-- ══════════════════════════════════
+local Settings = {
+    FPSCap          = 60,
+    -- Material override: "Default" | "Studs" | "SmoothPlastic"
+    MaterialMode    = "Default",
+    LessLighting    = false,
+    NoParticles     = false,
+    NoShadows       = false,
+    NoFog           = false,
+    NoDecals        = false,
+    DisableSky      = false,
+    NoWater         = false,
+    MinimizeSound   = false,
+    NoAnimations    = false,
+    LowDetailMeshes = false,
+    LowRenderDist   = false,
+    -- Additional features
+    NoBillboards    = false,
+    FreezeBG        = false,
+    MaxFOV          = false,
+}
+
+-- Saved originals for full revert
+local Originals = {
+    FogEnd         = Lighting.FogEnd,
+    FogStart       = Lighting.FogStart,
+    GlobalShadows  = Lighting.GlobalShadows,
+    Brightness     = Lighting.Brightness,
+    Ambient        = Lighting.Ambient,
+    OutdoorAmb     = Lighting.OutdoorAmbient,
+    AmbientReverb  = SoundService.AmbientReverb,
+    -- Part material/texture originals stored as map
+    Parts          = {},  -- [part] = { Material, TextureId }
+    CameraFOV      = nil,
+}
+
+local particleWatcher = nil
+local boostActive     = false
+local toggleRefs      = {}   -- [key] = { bg, knob, stroke }
+local lo              = 0    -- layout order counter
+
+-- ══════════════════════════════════
+--  DESTROY OLD INSTANCE
+-- ══════════════════════════════════
+if PlayerGui:FindFirstChild("PhantomFPS") then
+    PlayerGui.PhantomFPS:Destroy()
+end
+
+-- ══════════════════════════════════
+--  ROOT GUI
+-- ══════════════════════════════════
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name           = "PhantomFPS"
+ScreenGui.ResetOnSpawn   = false
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.IgnoreGuiInset = true
+ScreenGui.DisplayOrder   = 999
+ScreenGui.Parent         = PlayerGui
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Name              = "MainFrame"
+MainFrame.Size              = UDim2.new(0, 380, 0, 340)
+MainFrame.Position          = UDim2.new(0.5, -190, 0.5, -300)
+MainFrame.BackgroundColor3  = BG_DARK
+MainFrame.BorderSizePixel   = 0
+MainFrame.Active            = true
+MainFrame.Draggable         = true
+MainFrame.ClipsDescendants  = true
+MainFrame.Parent            = ScreenGui
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 14)
+
+local BorderStroke = Instance.new("UIStroke")
+BorderStroke.Color       = ACCENT
+BorderStroke.Thickness   = 1.5
+BorderStroke.Transparency = 0.42
+BorderStroke.Parent      = MainFrame
+
+-- ══════════════════════════════════
+--  HEADER
+-- ══════════════════════════════════
+local Header = Instance.new("Frame")
+Header.Size            = UDim2.new(1, 0, 0, 54)
+Header.BackgroundColor3 = BG_MID
+Header.BorderSizePixel = 0
+Header.ZIndex          = 5
+Header.Parent          = MainFrame
+Instance.new("UICorner", Header).CornerRadius = UDim.new(0, 14)
+
+-- Square off bottom half of header (rounded top only)
+local HdrFix = Instance.new("Frame")
+HdrFix.Size            = UDim2.new(1, 0, 0, 14)
+HdrFix.Position        = UDim2.new(0, 0, 1, -14)
+HdrFix.BackgroundColor3 = BG_MID
+HdrFix.BorderSizePixel = 0
+HdrFix.ZIndex          = 4
+HdrFix.Parent          = Header
+
+-- Cyan accent bar
+local AccentBar = Instance.new("Frame")
+AccentBar.Size            = UDim2.new(0, 4, 0, 30)
+AccentBar.Position        = UDim2.new(0, 14, 0.5, -15)
+AccentBar.BackgroundColor3 = ACCENT
+AccentBar.BorderSizePixel = 0
+AccentBar.ZIndex          = 7
+AccentBar.Parent          = Header
+Instance.new("UICorner", AccentBar).CornerRadius = UDim.new(1, 0)
+
+local TitleLbl = Instance.new("TextLabel")
+TitleLbl.Size                = UDim2.new(0, 155, 0, 20)
+TitleLbl.Position            = UDim2.new(0, 26, 0, 7)
+TitleLbl.BackgroundTransparency = 1
+TitleLbl.Text                = "PHANTOM  FPS"
+TitleLbl.TextColor3          = TXT_MAIN
+TitleLbl.TextSize            = 13
+TitleLbl.Font                = Enum.Font.GothamBold
+TitleLbl.TextXAlignment      = Enum.TextXAlignment.Left
+TitleLbl.ZIndex              = 7
+TitleLbl.Parent              = Header
+
+local SubLbl = Instance.new("TextLabel")
+SubLbl.Size                  = UDim2.new(0, 155, 0, 14)
+SubLbl.Position              = UDim2.new(0, 26, 0, 29)
+SubLbl.BackgroundTransparency = 1
+SubLbl.Text                  = "BOOSTER  v1.0"
+SubLbl.TextColor3            = ACCENT
+SubLbl.TextSize              = 9
+SubLbl.Font                  = Enum.Font.Gotham
+SubLbl.TextXAlignment        = Enum.TextXAlignment.Left
+SubLbl.ZIndex                = 7
+SubLbl.Parent                = Header
+
+-- Live FPS badge
+local LiveFPS = Instance.new("TextLabel")
+LiveFPS.Size             = UDim2.new(0, 64, 0, 22)
+LiveFPS.Position         = UDim2.new(1, -162, 0.5, -11)
+LiveFPS.BackgroundColor3 = Color3.fromRGB(16, 16, 26)
+LiveFPS.TextColor3       = ACCENT
+LiveFPS.TextSize         = 11
+LiveFPS.Font             = Enum.Font.GothamBold
+LiveFPS.Text             = "-- FPS"
+LiveFPS.ZIndex           = 7
+LiveFPS.Parent           = Header
+Instance.new("UICorner", LiveFPS).CornerRadius = UDim.new(0, 5)
+
+-- Minimize
+local MinBtn = Instance.new("TextButton")
+MinBtn.Size             = UDim2.new(0, 26, 0, 26)
+MinBtn.Position         = UDim2.new(1, -74, 0.5, -13)
+MinBtn.BackgroundColor3 = Color3.fromRGB(24, 24, 38)
+MinBtn.BorderSizePixel  = 0
+MinBtn.Text             = "-"
+MinBtn.TextColor3       = ACCENT
+MinBtn.TextSize         = 11
+MinBtn.Font             = Enum.Font.GothamBold
+MinBtn.ZIndex           = 7
+MinBtn.Parent           = Header
+Instance.new("UICorner", MinBtn).CornerRadius = UDim.new(0, 6)
+
+-- Close
+local CloseBtn = Instance.new("TextButton")
+CloseBtn.Size             = UDim2.new(0, 26, 0, 26)
+CloseBtn.Position         = UDim2.new(1, -42, 0.5, -13)
+CloseBtn.BackgroundColor3 = Color3.fromRGB(185, 40, 58)
+CloseBtn.BorderSizePixel  = 0
+CloseBtn.Text             = "✕"
+CloseBtn.TextColor3       = Color3.fromRGB(255, 255, 255)
+CloseBtn.TextSize         = 11
+CloseBtn.Font             = Enum.Font.GothamBold
+CloseBtn.ZIndex           = 7
+CloseBtn.Parent           = Header
+Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 6)
+
+-- Header separator
+local HdrSep = Instance.new("Frame")
+HdrSep.Size             = UDim2.new(1, -28, 0, 1)
+HdrSep.Position         = UDim2.new(0, 14, 0, 54)
+HdrSep.BackgroundColor3 = ACCENT
+HdrSep.BackgroundTransparency = 0.7
+HdrSep.BorderSizePixel  = 0
+HdrSep.Parent           = MainFrame
+
+-- ══════════════════════════════════
+--  SCROLL AREA
+-- ══════════════════════════════════
+local Scroll = Instance.new("ScrollingFrame")
+Scroll.Name                   = "Scroll"
+Scroll.Size                   = UDim2.new(1, 0, 1, -130)
+Scroll.Position               = UDim2.new(0, 0, 0, 56)
+Scroll.BackgroundTransparency = 1
+Scroll.BorderSizePixel        = 0
+Scroll.ScrollBarThickness     = 3
+Scroll.ScrollBarImageColor3   = ACCENT
+Scroll.ScrollBarImageTransparency = 0.3
+Scroll.AutomaticCanvasSize    = Enum.AutomaticSize.Y
+Scroll.CanvasSize             = UDim2.new(0, 0, 0, 0)
+Scroll.Parent                 = MainFrame
+
+local SLayout = Instance.new("UIListLayout")
+SLayout.Padding             = UDim.new(0, 6)
+SLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+SLayout.SortOrder           = Enum.SortOrder.LayoutOrder
+SLayout.Parent              = Scroll
+
+local SPad = Instance.new("UIPadding")
+SPad.PaddingTop    = UDim.new(0, 10)
+SPad.PaddingBottom = UDim.new(0, 14)
+SPad.Parent        = Scroll
+
+-- ══════════════════════════════════
+--  BOTTOM PANEL
+-- ══════════════════════════════════
+local BotPanel = Instance.new("Frame")
+BotPanel.Size             = UDim2.new(1, 0, 0, 128)
+BotPanel.Position         = UDim2.new(0, 0, 1, -128)
+BotPanel.BackgroundColor3 = Color3.fromRGB(10, 10, 17)
+BotPanel.BorderSizePixel  = 0
+BotPanel.ZIndex           = 3
+BotPanel.Parent           = MainFrame
+
+local BotSep = Instance.new("Frame")
+BotSep.Size             = UDim2.new(1, -28, 0, 1)
+BotSep.Position         = UDim2.new(0, 14, 0, 0)
+BotSep.BackgroundColor3 = ACCENT
+BotSep.BackgroundTransparency = 0.7
+BotSep.BorderSizePixel  = 0
+BotSep.ZIndex           = 4
+BotSep.Parent           = BotPanel
+
+-- Status bar
+local StatusRow = Instance.new("Frame")
+StatusRow.Size             = UDim2.new(1, -28, 0, 26)
+StatusRow.Position         = UDim2.new(0, 14, 0, 8)
+StatusRow.BackgroundColor3 = Color3.fromRGB(14, 14, 22)
+StatusRow.BorderSizePixel  = 0
+StatusRow.ZIndex           = 4
+StatusRow.Parent           = BotPanel
+Instance.new("UICorner", StatusRow).CornerRadius = UDim.new(0, 6)
+
+local SDot = Instance.new("Frame")
+SDot.Size             = UDim2.new(0, 8, 0, 8)
+SDot.Position         = UDim2.new(0, 10, 0.5, -4)
+SDot.BackgroundColor3 = Color3.fromRGB(48, 56, 90)
+SDot.BorderSizePixel  = 0
+SDot.ZIndex           = 5
+SDot.Parent           = StatusRow
+Instance.new("UICorner", SDot).CornerRadius = UDim.new(1, 0)
+
+local StatusLbl = Instance.new("TextLabel")
+StatusLbl.Size                = UDim2.new(1, -26, 1, 0)
+StatusLbl.Position            = UDim2.new(0, 24, 0, 0)
+StatusLbl.BackgroundTransparency = 1
+StatusLbl.Text                = "Idle, configure settings then hit Execute"
+StatusLbl.TextColor3          = TXT_SUB
+StatusLbl.TextSize            = 9
+StatusLbl.Font                = Enum.Font.Gotham
+StatusLbl.TextXAlignment      = Enum.TextXAlignment.Left
+StatusLbl.ZIndex              = 5
+StatusLbl.Parent              = StatusRow
+
+-- Execute button
+local ExecBtn = Instance.new("TextButton")
+ExecBtn.Size             = UDim2.new(1, -28, 0, 46)
+ExecBtn.Position         = UDim2.new(0, 14, 0, 42)
+ExecBtn.BackgroundColor3 = Color3.fromRGB(0, 160, 210)
+ExecBtn.BorderSizePixel  = 0
+ExecBtn.Text             = ""
+ExecBtn.ZIndex           = 4
+ExecBtn.Parent           = BotPanel
+Instance.new("UICorner", ExecBtn).CornerRadius = UDim.new(0, 10)
+
+local ExecGrad = Instance.new("UIGradient")
+ExecGrad.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 185, 245)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 108, 198)),
+})
+ExecGrad.Rotation = 90
+ExecGrad.Parent   = ExecBtn
+
+local ExecLbl = Instance.new("TextLabel")
+ExecLbl.Size                = UDim2.new(1, 0, 1, 0)
+ExecLbl.BackgroundTransparency = 1
+ExecLbl.Text                = "⚡   EXECUTE BOOST"
+ExecLbl.TextColor3          = Color3.fromRGB(255, 255, 255)
+ExecLbl.TextSize            = 14
+ExecLbl.Font                = Enum.Font.GothamBold
+ExecLbl.ZIndex              = 5
+ExecLbl.Parent              = ExecBtn
+
+-- Reset button
+local ResetBtn = Instance.new("TextButton")
+ResetBtn.Size                = UDim2.new(1, -28, 0, 18)
+ResetBtn.Position            = UDim2.new(0, 14, 0, 96)
+ResetBtn.BackgroundTransparency = 1
+ResetBtn.BorderSizePixel     = 0
+ResetBtn.Text                = "↺  Reset All Settings"
+ResetBtn.TextColor3          = Color3.fromRGB(62, 72, 108)
+ResetBtn.TextSize            = 10
+ResetBtn.Font                = Enum.Font.Gotham
+ResetBtn.ZIndex              = 4
+ResetBtn.Parent              = BotPanel
+
+-- ══════════════════════════════════
+--  WIDGET BUILDER HELPERS
+-- ══════════════════════════════════
+local function LO() lo = lo + 1; return lo end
+
+-- Section header
+local function MakeSection(title)
+    local f = Instance.new("Frame")
+    f.Size                 = UDim2.new(1, -28, 0, 22)
+    f.BackgroundTransparency = 1
+    f.LayoutOrder          = LO()
+    f.Parent               = Scroll
+
+    local pill = Instance.new("Frame")
+    pill.Size             = UDim2.new(0, 3, 0, 16)
+    pill.Position         = UDim2.new(0, 0, 0.5, -8)
+    pill.BackgroundColor3 = ACCENT
+    pill.BorderSizePixel  = 0
+    pill.Parent           = f
+    Instance.new("UICorner", pill).CornerRadius = UDim.new(1, 0)
+
+    local lbl = Instance.new("TextLabel")
+    lbl.Size                  = UDim2.new(1, -12, 1, 0)
+    lbl.Position              = UDim2.new(0, 10, 0, 0)
+    lbl.BackgroundTransparency = 1
+    lbl.Text                  = title:upper()
+    lbl.TextColor3            = ACCENT
+    lbl.TextSize              = 9
+    lbl.Font                  = Enum.Font.GothamBold
+    lbl.TextXAlignment        = Enum.TextXAlignment.Left
+    lbl.Parent                = f
+end
+
+-- Standard on/off toggle row
+local function MakeToggle(label, desc, key, defaultState)
+    if defaultState == nil then defaultState = false end
+
+    local card = Instance.new("Frame")
+    card.Name             = "Toggle_" .. key
+    card.Size             = UDim2.new(1, -28, 0, 56)
+    card.BackgroundColor3 = BG_CARD
+    card.BorderSizePixel  = 0
+    card.LayoutOrder      = LO()
+    card.Parent           = Scroll
+    Instance.new("UICorner", card).CornerRadius = UDim.new(0, 8)
+
+    local stroke = Instance.new("UIStroke")
+    stroke.Color     = STR_OFF
+    stroke.Thickness = 1
+    stroke.Parent    = card
+
+    local lbl = Instance.new("TextLabel")
+    lbl.Size                  = UDim2.new(1, -68, 0, 20)
+    lbl.Position              = UDim2.new(0, 12, 0, 8)
+    lbl.BackgroundTransparency = 1
+    lbl.Text                  = label
+    lbl.TextColor3            = TXT_MAIN
+    lbl.TextSize              = 12
+    lbl.Font                  = Enum.Font.GothamSemibold
+    lbl.TextXAlignment        = Enum.TextXAlignment.Left
+    lbl.Parent                = card
+
+    local dlbl = Instance.new("TextLabel")
+    dlbl.Size                  = UDim2.new(1, -68, 0, 16)
+    dlbl.Position              = UDim2.new(0, 12, 0, 30)
+    dlbl.BackgroundTransparency = 1
+    dlbl.Text                  = desc
+    dlbl.TextColor3            = TXT_SUB
+    dlbl.TextSize              = 9
+    dlbl.Font                  = Enum.Font.Gotham
+    dlbl.TextXAlignment        = Enum.TextXAlignment.Left
+    dlbl.Parent                = card
+
+    -- Pill background
+    local pillBG = Instance.new("Frame")
+    pillBG.Size             = UDim2.new(0, 42, 0, 22)
+    pillBG.Position         = UDim2.new(1, -54, 0.5, -11)
+    pillBG.BackgroundColor3 = Color3.fromRGB(24, 24, 40)
+    pillBG.BorderSizePixel  = 0
+    pillBG.Parent           = card
+    Instance.new("UICorner", pillBG).CornerRadius = UDim.new(1, 0)
+
+    -- Knob
+    local knob = Instance.new("Frame")
+    knob.Size             = UDim2.new(0, 16, 0, 16)
+    knob.Position         = UDim2.new(0, 3, 0.5, -8)
+    knob.BackgroundColor3 = Color3.fromRGB(50, 50, 78)
+    knob.BorderSizePixel  = 0
+    knob.Parent           = pillBG
+    Instance.new("UICorner", knob).CornerRadius = UDim.new(1, 0)
+
+    -- Full-card invisible click target
+    local hit = Instance.new("TextButton")
+    hit.Size                 = UDim2.new(1, 0, 1, 0)
+    hit.BackgroundTransparency = 1
+    hit.Text                 = ""
+    hit.ZIndex               = 3
+    hit.Parent               = card
+
+    toggleRefs[key] = { bg = pillBG, knob = knob, stroke = stroke }
+
+    local function Refresh(state)
+        local ti = TweenInfo.new(0.18, Enum.EasingStyle.Quad)
+        if state then
+            TweenService:Create(pillBG, ti, { BackgroundColor3 = Color3.fromRGB(0, 158, 208) }):Play()
+            TweenService:Create(knob,   ti, {
+                Position         = UDim2.new(0, 23, 0.5, -8),
+                BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+            }):Play()
+            stroke.Color = STR_ON
+        else
+            TweenService:Create(pillBG, ti, { BackgroundColor3 = Color3.fromRGB(24, 24, 40) }):Play()
+            TweenService:Create(knob,   ti, {
+                Position         = UDim2.new(0, 3, 0.5, -8),
+                BackgroundColor3 = Color3.fromRGB(50, 50, 78),
+            }):Play()
+            stroke.Color = STR_OFF
+        end
+    end
+
+    hit.MouseButton1Click:Connect(function()
+        Settings[key] = not Settings[key]
+        Refresh(Settings[key])
+    end)
+
+    Refresh(Settings[key])
+    return Refresh  -- return so caller can trigger it externally
+end
+
+-- FPS cap selector
+local function MakeFPSSelector()
+    local card = Instance.new("Frame")
+    card.Size             = UDim2.new(1, -28, 0, 80)
+    card.BackgroundColor3 = BG_CARD
+    card.BorderSizePixel  = 0
+    card.LayoutOrder      = LO()
+    card.Parent           = Scroll
+    Instance.new("UICorner", card).CornerRadius = UDim.new(0, 8)
+
+    local stroke = Instance.new("UIStroke")
+    stroke.Color     = STR_ON
+    stroke.Thickness = 1
+    stroke.Parent    = card
+
+    local hdrLbl = Instance.new("TextLabel")
+    hdrLbl.Size                  = UDim2.new(0, 100, 0, 18)
+    hdrLbl.Position              = UDim2.new(0, 12, 0, 8)
+    hdrLbl.BackgroundTransparency = 1
+    hdrLbl.Text                  = "FPS CAP"
+    hdrLbl.TextColor3            = TXT_MAIN
+    hdrLbl.TextSize              = 12
+    hdrLbl.Font                  = Enum.Font.GothamSemibold
+    hdrLbl.TextXAlignment        = Enum.TextXAlignment.Left
+    hdrLbl.Parent                = card
+
+    local curLbl = Instance.new("TextLabel")
+    curLbl.Size                  = UDim2.new(0, 90, 0, 18)
+    curLbl.Position              = UDim2.new(1, -102, 0, 8)
+    curLbl.BackgroundTransparency = 1
+    curLbl.Text                  = "60 FPS"
+    curLbl.TextColor3            = ACCENT
+    curLbl.TextSize              = 12
+    curLbl.Font                  = Enum.Font.GothamBold
+    curLbl.TextXAlignment        = Enum.TextXAlignment.Right
+    curLbl.Parent                = card
+
+    local btnRow = Instance.new("Frame")
+    btnRow.Size                  = UDim2.new(1, -24, 0, 32)
+    btnRow.Position              = UDim2.new(0, 12, 0, 36)
+    btnRow.BackgroundTransparency = 1
+    btnRow.Parent                = card
+
+    local bLayout = Instance.new("UIListLayout")
+    bLayout.FillDirection     = Enum.FillDirection.Horizontal
+    bLayout.Padding           = UDim.new(0, 5)
+    bLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+    bLayout.Parent            = btnRow
+
+    local caps = {60, 120, 240, 360, 480}
+    local btns = {}
+
+    local function SelectCap(cap)
+        Settings.FPSCap = cap
+        curLbl.Text = cap .. " FPS"
+        for _, d in ipairs(btns) do
+            local active = d.cap == cap
+            TweenService:Create(d.f, TweenInfo.new(0.15), {
+                BackgroundColor3 = active and Color3.fromRGB(0, 158, 208) or BG_BTN
+            }):Play()
+            d.l.TextColor3 = active and Color3.fromRGB(255, 255, 255) or TXT_SUB
+            d.l.Font       = active and Enum.Font.GothamBold or Enum.Font.Gotham
+        end
+    end
+
+    for _, cap in ipairs(caps) do
+        local btn = Instance.new("TextButton")
+        btn.Size             = UDim2.new(0, 52, 0, 28)
+        btn.BackgroundColor3 = BG_BTN
+        btn.BorderSizePixel  = 0
+        btn.Text             = ""
+        btn.Parent           = btnRow
+        Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+
+        local lbl = Instance.new("TextLabel")
+        lbl.Size                  = UDim2.new(1, 0, 1, 0)
+        lbl.BackgroundTransparency = 1
+        lbl.Text                  = tostring(cap)
+        lbl.TextColor3            = TXT_SUB
+        lbl.TextSize              = 11
+        lbl.Font                  = Enum.Font.Gotham
+        lbl.Parent                = btn
+
+        table.insert(btns, { cap = cap, f = btn, l = lbl })
+        btn.MouseButton1Click:Connect(function() SelectCap(cap) end)
+    end
+
+    SelectCap(60)
+end
+
+-- ════════════════════════════════════════
+--  MATERIAL SELECTOR  (3-way: Default / Studs / SmoothPlastic)
+-- ════════════════════════════════════════
+local matRefreshCallback = nil  -- so ResetAll can call it
+
+local function MakeMaterialSelector()
+    local card = Instance.new("Frame")
+    card.Size             = UDim2.new(1, -28, 0, 84)
+    card.BackgroundColor3 = BG_CARD
+    card.BorderSizePixel  = 0
+    card.LayoutOrder      = LO()
+    card.Parent           = Scroll
+    Instance.new("UICorner", card).CornerRadius = UDim.new(0, 8)
+
+    local stroke = Instance.new("UIStroke")
+    stroke.Color     = STR_OFF
+    stroke.Thickness = 1
+    stroke.Parent    = card
+
+    local hdrLbl = Instance.new("TextLabel")
+    hdrLbl.Size                  = UDim2.new(0, 160, 0, 18)
+    hdrLbl.Position              = UDim2.new(0, 12, 0, 8)
+    hdrLbl.BackgroundTransparency = 1
+    hdrLbl.Text                  = "SURFACE MATERIAL"
+    hdrLbl.TextColor3            = TXT_MAIN
+    hdrLbl.TextSize              = 12
+    hdrLbl.Font                  = Enum.Font.GothamSemibold
+    hdrLbl.TextXAlignment        = Enum.TextXAlignment.Left
+    hdrLbl.Parent                = card
+
+    local descLbl = Instance.new("TextLabel")
+    descLbl.Size                  = UDim2.new(1, -24, 0, 14)
+    descLbl.Position              = UDim2.new(0, 12, 0, 28)
+    descLbl.BackgroundTransparency = 1
+    descLbl.Text                  = "Override all BasePart surfaces for FPS gain"
+    descLbl.TextColor3            = TXT_SUB
+    descLbl.TextSize              = 9
+    descLbl.Font                  = Enum.Font.Gotham
+    descLbl.TextXAlignment        = Enum.TextXAlignment.Left
+    descLbl.Parent                = card
+
+    -- Three option buttons
+    local btnRow = Instance.new("Frame")
+    btnRow.Size                  = UDim2.new(1, -24, 0, 30)
+    btnRow.Position              = UDim2.new(0, 12, 0, 46)
+    btnRow.BackgroundTransparency = 1
+    btnRow.Parent                = card
+
+    local bLayout = Instance.new("UIListLayout")
+    bLayout.FillDirection     = Enum.FillDirection.Horizontal
+    bLayout.Padding           = UDim.new(0, 6)
+    bLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+    bLayout.Parent            = btnRow
+
+    local modes = {
+        { key = "Default",       label = "Default",       icon = "●" },
+        { key = "Studs",         label = "Studs",         icon = "⬛" },
+        { key = "SmoothPlastic", label = "SmoothPlastic", icon = "◼" },
+    }
+    local mBtns = {}
+
+    local function SelectMode(mode)
+        Settings.MaterialMode = mode
+        -- Update stroke based on whether override is active
+        stroke.Color = (mode == "Default") and STR_OFF or STR_ON
+
+        for _, d in ipairs(mBtns) do
+            local active = d.key == mode
+            TweenService:Create(d.f, TweenInfo.new(0.15), {
+                BackgroundColor3 = active and Color3.fromRGB(0, 158, 208) or BG_BTN
+            }):Play()
+            d.l.TextColor3 = active and Color3.fromRGB(255, 255, 255) or TXT_SUB
+            d.l.Font       = active and Enum.Font.GothamBold or Enum.Font.Gotham
+        end
+    end
+
+    matRefreshCallback = SelectMode  -- expose for ResetAll
+
+    for _, m in ipairs(modes) do
+        local btn = Instance.new("TextButton")
+        btn.Size             = UDim2.new(0, 106, 0, 26)
+        btn.BackgroundColor3 = BG_BTN
+        btn.BorderSizePixel  = 0
+        btn.Text             = ""
+        btn.Parent           = btnRow
+        Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+
+        local lbl = Instance.new("TextLabel")
+        lbl.Size                  = UDim2.new(1, 0, 1, 0)
+        lbl.BackgroundTransparency = 1
+        lbl.Text                  = m.label
+        lbl.TextColor3            = TXT_SUB
+        lbl.TextSize              = 10
+        lbl.Font                  = Enum.Font.Gotham
+        lbl.Parent                = btn
+
+        table.insert(mBtns, { key = m.key, f = btn, l = lbl })
+        btn.MouseButton1Click:Connect(function() SelectMode(m.key) end)
+    end
+
+    SelectMode("Default")
+end
+
+-- ══════════════════════════════════
+--  BUILD LAYOUT  (order = visible order)
+-- ══════════════════════════════════
+
+MakeSection("FPS Cap")
+MakeFPSSelector()
+
+MakeSection("Surface Material")
+MakeMaterialSelector()
+
+MakeSection("Anti-Lag")
+MakeToggle("Less Heavy Lighting",     "Disables Bloom, SunRays, DOF, Blur & lowers ambient",    "LessLighting")
+MakeToggle("Remove Particles",        "Kills Fire, Smoke, Sparkles & ParticleEmitters live",     "NoParticles")
+MakeToggle("Disable Shadows",         "Turns off engine-wide GlobalShadows",                     "NoShadows")
+MakeToggle("Remove Fog",              "Pushes FogEnd to 100 000 studs",                          "NoFog")
+MakeToggle("Remove Decals / Textures","Hides all Decal & Texture surfaces (transparency = 1)",   "NoDecals")
+MakeToggle("Disable Skybox",          "Destroys the Sky instance to reduce GPU overhead",        "DisableSky")
+MakeToggle("Simplify Water",          "Sets terrain water size, speed & reflectance to 0",       "NoWater")
+
+MakeSection("Extra Optimizations")
+MakeToggle("Low Render Distance",     "Shrinks streaming radius to 32 / 64 studs",               "LowRenderDist")
+MakeToggle("Minimize Sounds",         "Caps all Sound volumes & removes reverb",                 "MinimizeSound")
+MakeToggle("Disable Animations",      "Stops Animator tracks on non-player rigs",                "NoAnimations")
+MakeToggle("Low Detail Meshes",       "Forces MeshPart RenderFidelity to Automatic",             "LowDetailMeshes")
+
+MakeSection("Extras")
+MakeToggle("Remove Billboard GUIs",   "Hides all BillboardGuis & SurfaceGuis in workspace",     "NoBillboards")
+MakeToggle("Freeze Background NPCs",  "Stops Humanoid NPC updates for non-character models",     "FreezeBG")
+MakeToggle("Max FOV (120)",           "Sets camera FieldOfView to 120 for wider view",           "MaxFOV")
+
+-- ══════════════════════════════════
+--  BOOST FUNCTIONS
+-- ══════════════════════════════════
+
+-- FPS cap  (supports setfpscap / syn.setfpscap / Drawing.new fallbacks)
+local function DoFPSCap()
+    pcall(function()
+        if setfpscap then
+            setfpscap(Settings.FPSCap)
+        elseif rawget(_G, "syn") and syn.setfpscap then
+            syn.setfpscap(Settings.FPSCap)
+        end
+    end)
+end
+
+-- Material override with per-part backup
+local function DoMaterial()
+    local mode = Settings.MaterialMode
+    if mode == "Default" then return end
+
+    for _, v in ipairs(workspace:GetDescendants()) do
+        if v:IsA("BasePart") and not v:IsA("Terrain") then
+            pcall(function()
+                -- Backup original only once
+                if not Originals.Parts[v] then
+                    Originals.Parts[v] = {
+                        Material  = v.Material,
+                        CastShadow = v.CastShadow,
+                    }
+                end
+                if mode == "Studs" then
+                    v.Material = Enum.Material.SmoothPlastic
+                    -- Remove special mesh textures
+                    for _, c in ipairs(v:GetChildren()) do
+                        if c:IsA("SpecialMesh") then
+                            c.TextureId = ""
+                        end
+                    end
+                elseif mode == "SmoothPlastic" then
+                    v.Material = Enum.Material.SmoothPlastic
+                end
+            end)
+        end
+    end
+
+    -- Also handle Studs-specific: force texture-less SpecialMeshes everywhere
+    if mode == "Studs" then
+        for _, v in ipairs(workspace:GetDescendants()) do
+            if v:IsA("SpecialMesh") then
+                pcall(function() v.TextureId = "" end)
+            end
+        end
+    end
+end
+
+local function DoLighting()
+    if not Settings.LessLighting then return end
+    Originals.Brightness = Lighting.Brightness
+    Originals.Ambient    = Lighting.Ambient
+    Originals.OutdoorAmb = Lighting.OutdoorAmbient
+    pcall(function()
+        Lighting.Brightness     = 0.35
+        Lighting.Ambient        = Color3.fromRGB(85, 85, 85)
+        Lighting.OutdoorAmbient = Color3.fromRGB(85, 85, 85)
+    end)
+    for _, e in ipairs(Lighting:GetChildren()) do
+        pcall(function()
+            if  e:IsA("BloomEffect")
+             or e:IsA("DepthOfFieldEffect")
+             or e:IsA("SunRaysEffect")
+             or e:IsA("ColorCorrectionEffect")
+             or e:IsA("BlurEffect")
+             or e:IsA("GlassEffect") then
+                e.Enabled = false
+            end
+        end)
+    end
+end
+
+local function DoParticles()
+    if not Settings.NoParticles then return end
+    local function KillParticle(v)
+        if v:IsA("ParticleEmitter") or v:IsA("Smoke")
+        or v:IsA("Fire")            or v:IsA("Sparkles") then
+            pcall(function() v.Enabled = false end)
+        end
+    end
+    for _, v in ipairs(workspace:GetDescendants()) do KillParticle(v) end
+    -- Live watcher for newly-added particles
+    if not particleWatcher then
+        particleWatcher = workspace.DescendantAdded:Connect(function(v)
+            if Settings.NoParticles then task.defer(KillParticle, v) end
+        end)
+    end
+end
+
+local function DoShadows()
+    if not Settings.NoShadows then return end
+    Originals.GlobalShadows = Lighting.GlobalShadows
+    pcall(function() Lighting.GlobalShadows = false end)
+end
+
+local function DoFog()
+    if not Settings.NoFog then return end
+    Originals.FogEnd   = Lighting.FogEnd
+    Originals.FogStart = Lighting.FogStart
+    pcall(function()
+        Lighting.FogEnd   = 100000
+        Lighting.FogStart = 99998
+    end)
+end
+
+local function DoDecals()
+    if not Settings.NoDecals then return end
+    for _, v in ipairs(workspace:GetDescendants()) do
+        if v:IsA("Decal") or v:IsA("Texture") then
+            pcall(function() v.Transparency = 1 end)
+        end
+    end
+end
+
+local function DoSky()
+    if not Settings.DisableSky then return end
+    for _, v in ipairs(Lighting:GetChildren()) do
+        if v:IsA("Sky") then pcall(function() v:Destroy() end) end
+    end
+end
+
+local function DoWater()
+    if not Settings.NoWater then return end
+    pcall(function()
+        workspace.Terrain.WaterWaveSize    = 0
+        workspace.Terrain.WaterWaveSpeed   = 0
+        workspace.Terrain.WaterReflectance = 0
+    end)
+end
+
+local function DoRenderDist()
+    if not Settings.LowRenderDist then return end
+    pcall(function()
+        workspace.StreamingMinRadius    = 32
+        workspace.StreamingTargetRadius = 64
+    end)
+end
+
+local function DoSounds()
+    if not Settings.MinimizeSound then return end
+    pcall(function() SoundService.AmbientReverb = Enum.ReverbType.NoReverb end)
+    local char = LocalPlayer.Character
+    for _, v in ipairs(workspace:GetDescendants()) do
+        if v:IsA("Sound") then
+            pcall(function()
+                if char and v:IsDescendantOf(char) then return end
+                v.Volume = math.min(v.Volume, 0.08)
+            end)
+        end
+    end
+end
+
+local function DoAnimations()
+    if not Settings.NoAnimations then return end
+    local char = LocalPlayer.Character
+    for _, v in ipairs(workspace:GetDescendants()) do
+        if v:IsA("Animator") then
+            pcall(function()
+                if char and v:IsDescendantOf(char) then return end
+                for _, track in ipairs(v:GetPlayingAnimationTracks()) do
+                    track:Stop(0)
+                end
+            end)
+        end
+    end
+end
+
+local function DoMeshLOD()
+    if not Settings.LowDetailMeshes then return end
+    for _, v in ipairs(workspace:GetDescendants()) do
+        if v:IsA("MeshPart") then
+            pcall(function() v.RenderFidelity = Enum.RenderFidelity.Automatic end)
+        end
+    end
+end
+
+-- Additional features
+local function DoBillboards()
+    if not Settings.NoBillboards then return end
+    for _, v in ipairs(workspace:GetDescendants()) do
+        if v:IsA("BillboardGui") or v:IsA("SurfaceGui") then
+            pcall(function() v.Enabled = false end)
+        end
+    end
+end
+
+local function DoFreezeBG()
+    if not Settings.FreezeBG then return end
+    local char = LocalPlayer.Character
+    for _, v in ipairs(workspace:GetDescendants()) do
+        if v:IsA("Humanoid") then
+            pcall(function()
+                if char and v:IsDescendantOf(char) then return end
+                v.WalkSpeed  = 0
+                v.JumpHeight = 0
+            end)
+        end
+    end
+end
+
+local function DoFOV()
+    if not Settings.MaxFOV then return end
+    local cam = workspace.CurrentCamera
+    if cam then
+        Originals.CameraFOV = cam.FieldOfView
+        pcall(function() cam.FieldOfView = 120 end)
+    end
+end
+
+-- ══════════════════════════════════
+--  FULL RESET
+-- ══════════════════════════════════
+local function ResetAll()
+    -- FPS uncap
+    pcall(function() if setfpscap then setfpscap(0) end end)
+
+    -- Restore lighting
+    pcall(function()
+        Lighting.GlobalShadows  = Originals.GlobalShadows
+        Lighting.Brightness     = Originals.Brightness
+        Lighting.Ambient        = Originals.Ambient
+        Lighting.OutdoorAmbient = Originals.OutdoorAmb
+        Lighting.FogEnd         = Originals.FogEnd
+        Lighting.FogStart       = Originals.FogStart
+    end)
+    for _, e in ipairs(Lighting:GetChildren()) do
+        pcall(function()
+            if  e:IsA("BloomEffect") or e:IsA("DepthOfFieldEffect")
+             or e:IsA("SunRaysEffect") or e:IsA("ColorCorrectionEffect")
+             or e:IsA("BlurEffect") then
+                e.Enabled = true
+            end
+        end)
+    end
+
+    -- Restore part materials
+    for part, data in pairs(Originals.Parts) do
+        pcall(function()
+            if part and part.Parent then
+                part.Material   = data.Material
+                part.CastShadow = data.CastShadow
+            end
+        end)
+    end
+    Originals.Parts = {}
+
+    -- Restore particles
+    for _, v in ipairs(workspace:GetDescendants()) do
+        if v:IsA("ParticleEmitter") or v:IsA("Smoke")
+        or v:IsA("Fire")            or v:IsA("Sparkles") then
+            pcall(function() v.Enabled = true end)
+        end
+    end
+    if particleWatcher then particleWatcher:Disconnect(); particleWatcher = nil end
+
+    -- Restore workspace billboards (only if NoBillboards was active)
+    if Settings.NoBillboards then
+        for _, v in ipairs(workspace:GetDescendants()) do
+            if v:IsA("BillboardGui") or v:IsA("SurfaceGui") then
+                pcall(function() v.Enabled = true end)
+            end
+        end
+    end
+
+    -- Restore sounds
+    pcall(function() SoundService.AmbientReverb = Originals.AmbientReverb end)
+
+    -- Restore FOV
+    if Originals.CameraFOV then
+        pcall(function()
+            local cam = workspace.CurrentCamera
+            if cam then cam.FieldOfView = Originals.CameraFOV end
+        end)
+        Originals.CameraFOV = nil
+    end
+
+    -- Reset material selector UI
+    if matRefreshCallback then matRefreshCallback("Default") end
+    Settings.MaterialMode = "Default"
+
+    -- Reset all boolean toggles
+    for k in pairs(Settings) do
+        if k ~= "FPSCap" and k ~= "MaterialMode" then
+            Settings[k] = false
+            local r = toggleRefs[k]
+            if r then
+                TweenService:Create(r.bg, TweenInfo.new(0.18), { BackgroundColor3 = Color3.fromRGB(24, 24, 40) }):Play()
+                TweenService:Create(r.knob, TweenInfo.new(0.18), {
+                    Position         = UDim2.new(0, 3, 0.5, -8),
+                    BackgroundColor3 = Color3.fromRGB(50, 50, 78),
+                }):Play()
+                r.stroke.Color = STR_OFF
+            end
+        end
+    end
+
+    -- Reset exec button
+    boostActive      = false
+    ExecGrad.Enabled = true
+    ExecLbl.Text     = "⚡   EXECUTE BOOST"
+    TweenService:Create(ExecBtn, TweenInfo.new(0.2), { BackgroundColor3 = Color3.fromRGB(0, 160, 210) }):Play()
+    SDot.BackgroundColor3 = Color3.fromRGB(48, 56, 90)
+    StatusLbl.TextColor3  = TXT_SUB
+    StatusLbl.Text        = "Reset, all settings cleared"
+end
+
+-- ══════════════════════════════════
+--  EXECUTE HANDLER
+-- ══════════════════════════════════
+ExecBtn.MouseButton1Click:Connect(function()
+    if boostActive then return end
+    boostActive = true
+
+    TweenService:Create(ExecBtn, TweenInfo.new(0.08), { BackgroundColor3 = Color3.fromRGB(0, 95, 145) }):Play()
+    ExecLbl.Text = "⚙   APPLYING..."
+    task.wait(0.20)
+
+    DoFPSCap()
+    DoMaterial()
+    DoLighting()
+    DoParticles()
+    DoShadows()
+    DoFog()
+    DoDecals()
+    DoSky()
+    DoWater()
+    DoRenderDist()
+    DoSounds()
+    DoAnimations()
+    DoMeshLOD()
+    DoBillboards()
+    DoFreezeBG()
+    DoFOV()
+
+    -- Count active tweaks
+    local count = 0
+    for k, v in pairs(Settings) do
+        if k ~= "FPSCap" then
+            if k == "MaterialMode" and v ~= "Default" then count = count + 1
+            elseif type(v) == "boolean" and v then count = count + 1
+            end
+        end
+    end
+
+    ExecGrad.Enabled         = false
+    ExecBtn.BackgroundColor3 = Color3.fromRGB(0, 185, 100)
+    ExecLbl.Text             = string.format("✓   BOOST ACTIVE  (%d tweaks)", count)
+
+    SDot.BackgroundColor3 = GREEN
+    StatusLbl.TextColor3  = GREEN
+    StatusLbl.Text        = string.format("Active, %d FPS cap, %d optimizations", Settings.FPSCap, count)
+end)
+
+ExecBtn.MouseEnter:Connect(function()
+    if not boostActive then
+        TweenService:Create(ExecBtn, TweenInfo.new(0.1), { BackgroundColor3 = Color3.fromRGB(0, 185, 238) }):Play()
+    end
+end)
+ExecBtn.MouseLeave:Connect(function()
+    if not boostActive then
+        TweenService:Create(ExecBtn, TweenInfo.new(0.1), { BackgroundColor3 = Color3.fromRGB(0, 160, 210) }):Play()
+    end
+end)
+
+ResetBtn.MouseButton1Click:Connect(ResetAll)
+
+-- ══════════════════════════════════
+--  MINIMIZE / CLOSE
+-- ══════════════════════════════════
+local minimized = false
+local FULL_H    = 600
+
+MinBtn.MouseButton1Click:Connect(function()
+    minimized = not minimized
+    local h   = minimized and 54 or FULL_H
+    TweenService:Create(MainFrame, TweenInfo.new(0.22, Enum.EasingStyle.Quart), {
+        Size = UDim2.new(0, 380, 0, h)
+    }):Play()
+    MinBtn.Text = minimized and "+" or "-"
+end)
+
+CloseBtn.MouseButton1Click:Connect(function()
+    TweenService:Create(MainFrame, TweenInfo.new(0.16), { Size = UDim2.new(0, 0, 0, 0) }):Play()
+    task.delay(0.18, function() ScreenGui:Destroy() end)
+end)
+
+-- ══════════════════════════════════
+--  LIVE FPS COUNTER
+-- ══════════════════════════════════
+local fT, fC = 0, 0
+RunService.RenderStepped:Connect(function(dt)
+    fT = fT + dt
+    fC = fC + 1
+    if fT >= 0.5 then
+        local fps = math.floor(fC / fT + 0.5)
+        LiveFPS.Text = fps .. " FPS"
+        if fps >= 55 then
+            LiveFPS.TextColor3 = GREEN
+        elseif fps >= 30 then
+            LiveFPS.TextColor3 = YELLOW
+        else
+            LiveFPS.TextColor3 = RED
+        end
+        fT, fC = 0, 0
+    end
+end)
+
+-- ══════════════════════════════════
+--  STARTUP NOTIFICATION
+-- ══════════════════════════════════
+pcall(function()
+    StarterGui:SetCore("SendNotification", {
+        Title    = "Phantom FPS Booster",
+        Text     = "v1.0 loaded, ready to boost your FPS!",
+        Duration = 4,
+    })
+end)
+
+print("[Phantom FPS Booster v1.0] Loaded. GUI is draggable.")
