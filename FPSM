@@ -1,0 +1,337 @@
+-- ╔══════════════════════════════════════════════════╗
+-- ║          PHANTOM FPS BOOSTER  v1.0               ║
+-- ║   Material Selector • Landscape Mobile Fixed     ║
+-- ╚══════════════════════════════════════════════════╝
+
+-- ══════════════════════════════════
+--  SERVICES
+-- ══════════════════════════════════
+local Players          = game:GetService("Players")
+local RunService       = game:GetService("RunService")
+local Lighting         = game:GetService("Lighting")
+local TweenService     = game:GetService("TweenService")
+local StarterGui       = game:GetService("StarterGui")
+local SoundService     = game:GetService("SoundService")
+local UserInputService = game:GetService("UserInputService")
+
+local LocalPlayer  = Players.LocalPlayer
+local PlayerGui    = LocalPlayer:WaitForChild("PlayerGui")
+
+-- ══════════════════════════════════
+--  CONSTANTS / THEME
+-- ══════════════════════════════════
+local ACCENT    = Color3.fromRGB(0, 195, 255)
+local BG_DARK   = Color3.fromRGB(9,  9,  14)
+local BG_MID    = Color3.fromRGB(13, 13, 20)
+local BG_CARD   = Color3.fromRGB(15, 15, 23)
+local STR_OFF   = Color3.fromRGB(27, 27, 44)
+local TXT_MAIN  = Color3.fromRGB(210, 222, 245)
+local GREEN     = Color3.fromRGB(0,  195, 105)
+local YELLOW    = Color3.fromRGB(255, 195, 0)
+
+local Settings = {
+    MaterialMode    = "Default",
+    LessLighting    = false,
+    NoParticles     = false,
+    NoShadows       = false,
+    NoFog           = false,
+    NoDecals        = false,
+    NoWater         = false,
+    MinimizeSound   = false,
+}
+
+-- ══════════════════════════════════
+--  ROOT GUI
+-- ══════════════════════════════════
+if PlayerGui:FindFirstChild("PhantomFPS") then PlayerGui.PhantomFPS:Destroy() end
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "PhantomFPS"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.IgnoreGuiInset = true -- Crucial for mobile notches/landscape
+ScreenGui.Parent = PlayerGui
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Position = UDim2.new(0.5, -170, 0.5, -200)
+MainFrame.BackgroundColor3 = BG_DARK
+MainFrame.BorderSizePixel = 0
+MainFrame.ClipsDescendants = true
+MainFrame.Parent = ScreenGui
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 10)
+
+local BorderStroke = Instance.new("UIStroke")
+BorderStroke.Color = ACCENT
+BorderStroke.Thickness = 1.5
+BorderStroke.Transparency = 0.5
+BorderStroke.Parent = MainFrame
+
+-- ══════════════════════════════════
+--  LANDSCAPE AUTO-SCALING LOGIC
+-- ══════════════════════════════════
+local FULL_H = 600
+local minimized = false
+local HEADER_H = 50
+
+-- Calculate safe max-height based on user's device (landscape mode fix)
+local function adjustForLandscape()
+    local viewport = ScreenGui.AbsoluteSize
+    -- If screen height is small (landscape phone), shrink max height by 20px buffer
+    FULL_H = math.min(600, viewport.Y - 20) 
+    
+    -- Center X dynamically to ensure it stays fully on screen
+    if not minimized then
+        MainFrame.Size = UDim2.new(0, 340, 0, FULL_H)
+    end
+end
+-- Hook to screen size changes
+ScreenGui:GetPropertyChangedSignal("AbsoluteSize"):Connect(adjustForLandscape)
+adjustForLandscape() -- Run on start
+
+-- ══════════════════════════════════
+--  HEADER
+-- ══════════════════════════════════
+local Header = Instance.new("Frame")
+Header.Size = UDim2.new(1, 0, 0, HEADER_H)
+Header.BackgroundColor3 = BG_MID
+Header.BorderSizePixel = 0
+Header.Parent = MainFrame
+Instance.new("UICorner", Header).CornerRadius = UDim.new(0, 10)
+
+local TitleLbl = Instance.new("TextLabel")
+TitleLbl.Size = UDim2.new(0, 150, 1, 0)
+TitleLbl.Position = UDim2.new(0, 12, 0, 0)
+TitleLbl.BackgroundTransparency = 1
+TitleLbl.Text = "PHANTOM FPS"
+TitleLbl.TextColor3 = TXT_MAIN
+TitleLbl.TextSize = 13
+TitleLbl.Font = Enum.Font.GothamBold
+TitleLbl.TextXAlignment = Enum.TextXAlignment.Left
+TitleLbl.Parent = Header
+
+local LiveFPS = Instance.new("TextLabel")
+LiveFPS.Size = UDim2.new(0, 60, 0, 22)
+LiveFPS.Position = UDim2.new(1, -145, 0.5, -11)
+LiveFPS.BackgroundColor3 = Color3.fromRGB(16, 16, 26)
+LiveFPS.TextColor3 = ACCENT
+LiveFPS.TextSize = 11
+LiveFPS.Font = Enum.Font.GothamBold
+LiveFPS.Text = "-- FPS"
+LiveFPS.Parent = Header
+Instance.new("UICorner", LiveFPS).CornerRadius = UDim.new(0, 4)
+
+local MinBtn = Instance.new("TextButton")
+MinBtn.Size = UDim2.new(0, 26, 0, 26)
+MinBtn.Position = UDim2.new(1, -75, 0.5, -13)
+MinBtn.BackgroundColor3 = Color3.fromRGB(24, 24, 38)
+MinBtn.Text = "-"
+MinBtn.TextColor3 = ACCENT
+MinBtn.Font = Enum.Font.GothamBold
+MinBtn.Parent = Header
+Instance.new("UICorner", MinBtn).CornerRadius = UDim.new(0, 6)
+
+local CloseBtn = Instance.new("TextButton")
+CloseBtn.Size = UDim2.new(0, 26, 0, 26)
+CloseBtn.Position = UDim2.new(1, -40, 0.5, -13)
+CloseBtn.BackgroundColor3 = Color3.fromRGB(185, 40, 58)
+CloseBtn.Text = "✕"
+CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseBtn.Font = Enum.Font.GothamBold
+CloseBtn.Parent = Header
+Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 6)
+
+-- ══════════════════════════════════
+--  MOBILE-FRIENDLY CLAMPED DRAG
+-- ══════════════════════════════════
+local dragging, dragStart, startPos
+
+local function updateDrag(input)
+    local delta = input.Position - dragStart
+    local newX = startPos.X.Offset + delta.X
+    local newY = startPos.Y.Offset + delta.Y
+    
+    local viewport = ScreenGui.AbsoluteSize
+    
+    -- Absolute bounds clamping so it cannot go off screen
+    newX = math.clamp(newX, 0, viewport.X - MainFrame.AbsoluteSize.X)
+    newY = math.clamp(newY, 0, viewport.Y - MainFrame.AbsoluteSize.Y)
+    
+    MainFrame.Position = UDim2.new(0, newX, 0, newY)
+end
+
+Header.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = {X = {Offset = MainFrame.AbsolutePosition.X}, Y = {Offset = MainFrame.AbsolutePosition.Y}}
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then dragging = false end
+        end)
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        updateDrag(input)
+    end
+end)
+
+-- ══════════════════════════════════
+--  MINIMIZE & CLOSE
+-- ══════════════════════════════════
+MinBtn.MouseButton1Click:Connect(function()
+    minimized = not minimized
+    local targetH = minimized and HEADER_H or FULL_H
+    
+    -- Toggle visibility for internals to keep it clean
+    for _, child in ipairs(MainFrame:GetChildren()) do
+        if child ~= Header and child:IsA("GuiObject") and not child:IsA("UIStroke") then
+            child.Visible = not minimized
+        end
+    end
+    
+    TweenService:Create(MainFrame, TweenInfo.new(0.22, Enum.EasingStyle.Quart), {Size = UDim2.new(0, 340, 0, targetH)}):Play()
+    MinBtn.Text = minimized and "+" or "-"
+end)
+
+CloseBtn.MouseButton1Click:Connect(function()
+    TweenService:Create(MainFrame, TweenInfo.new(0.16), { Size = UDim2.new(0, 0, 0, 0) }):Play()
+    task.delay(0.18, function() ScreenGui:Destroy() end)
+end)
+
+-- ══════════════════════════════════
+--  FLEXIBLE SCROLL AREA
+-- ══════════════════════════════════
+-- Size shrinks relatively so the Execute button always fits at the bottom.
+local Scroll = Instance.new("ScrollingFrame")
+Scroll.Size = UDim2.new(1, 0, 1, -115) 
+Scroll.Position = UDim2.new(0, 0, 0, 55)
+Scroll.BackgroundTransparency = 1
+Scroll.BorderSizePixel = 0
+Scroll.ScrollBarThickness = 2
+Scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+Scroll.Parent = MainFrame
+
+local SLayout = Instance.new("UIListLayout")
+SLayout.Padding = UDim.new(0, 8)
+SLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+SLayout.Parent = Scroll
+
+-- ══════════════════════════════════
+--  WIDGETS & TOGGLES
+-- ══════════════════════════════════
+local function MakeToggle(label, key)
+    local card = Instance.new("Frame")
+    card.Size = UDim2.new(0.9, 0, 0, 42)
+    card.BackgroundColor3 = BG_CARD
+    card.Parent = Scroll
+    Instance.new("UICorner", card).CornerRadius = UDim.new(0, 6)
+
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(0.7, 0, 1, 0)
+    lbl.Position = UDim2.new(0, 12, 0, 0)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = label
+    lbl.TextColor3 = TXT_MAIN
+    lbl.TextSize = 12
+    lbl.Font = Enum.Font.Gotham
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.Parent = card
+
+    local switch = Instance.new("TextButton")
+    switch.Size = UDim2.new(0, 36, 0, 18)
+    switch.Position = UDim2.new(1, -48, 0.5, -9)
+    switch.BackgroundColor3 = STR_OFF
+    switch.Text = ""
+    switch.Parent = card
+    Instance.new("UICorner", switch).CornerRadius = UDim.new(1, 0)
+
+    local knob = Instance.new("Frame")
+    knob.Size = UDim2.new(0, 12, 0, 12)
+    knob.Position = UDim2.new(0, 3, 0.5, -6)
+    knob.BackgroundColor3 = Color3.fromRGB(200, 200, 200)
+    knob.Parent = switch
+    Instance.new("UICorner", knob).CornerRadius = UDim.new(1, 0)
+
+    switch.MouseButton1Click:Connect(function()
+        Settings[key] = not Settings[key]
+        local active = Settings[key]
+        TweenService:Create(switch, TweenInfo.new(0.2), {BackgroundColor3 = active and ACCENT or STR_OFF}):Play()
+        TweenService:Create(knob, TweenInfo.new(0.2), {Position = active and UDim2.new(1, -15, 0.5, -6) or UDim2.new(0, 3, 0.5, -6)}):Play()
+    end)
+end
+
+local toggles = {
+    {"Less Lighting", "LessLighting"},
+    {"No Particles", "NoParticles"},
+    {"Disable Shadows", "NoShadows"},
+    {"Remove Fog", "NoFog"},
+    {"No Decals", "NoDecals"},
+    {"Simplify Water", "NoWater"},
+    {"Minimize Sounds", "MinimizeSound"}
+}
+for _, t in ipairs(toggles) do MakeToggle(t[1], t[2]) end
+
+-- ══════════════════════════════════
+--  BOTTOM EXECUTE BUTTON
+-- ══════════════════════════════════
+local ExecBtn = Instance.new("TextButton")
+ExecBtn.Size = UDim2.new(0.9, 0, 0, 42)
+ExecBtn.Position = UDim2.new(0.05, 0, 1, -50) -- Always snaps 50px from bottom regardless of window height
+ExecBtn.BackgroundColor3 = ACCENT
+ExecBtn.Text = "EXECUTE BOOST"
+ExecBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+ExecBtn.Font = Enum.Font.GothamBold
+ExecBtn.Parent = MainFrame
+Instance.new("UICorner", ExecBtn).CornerRadius = UDim.new(0, 8)
+
+ExecBtn.MouseButton1Click:Connect(function()
+    ExecBtn.Text = "BOOSTING..."
+    ExecBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    
+    if Settings.NoShadows then Lighting.GlobalShadows = false end
+    if Settings.NoFog then Lighting.FogEnd = 100000 end
+    if Settings.NoDecals then
+        for _, v in pairs(workspace:GetDescendants()) do
+            if v:IsA("Decal") or v:IsA("Texture") then v.Transparency = 1 end
+        end
+    end
+    if Settings.NoParticles then
+        for _, v in pairs(workspace:GetDescendants()) do
+            if v:IsA("ParticleEmitter") or v:IsA("Fire") or v:IsA("Smoke") then v.Enabled = false end
+        end
+    end
+    if Settings.NoWater then
+        if workspace.Terrain then
+            workspace.Terrain.WaterWaveSize = 0
+            workspace.Terrain.WaterWaveSpeed = 0
+            workspace.Terrain.WaterReflectance = 0
+            workspace.Terrain.WaterTransparency = 0
+        end
+    end
+    
+    task.wait(0.5)
+    ExecBtn.Text = "BOOST ACTIVE"
+    ExecBtn.BackgroundColor3 = GREEN
+end)
+
+-- ══════════════════════════════════
+--  LIVE FPS COUNTER
+-- ══════════════════════════════════
+local fT, fC = 0, 0
+RunService.RenderStepped:Connect(function(dt)
+    fT = fT + dt
+    fC = fC + 1
+    if fT >= 0.5 then
+        local fps = math.floor(fC / fT + 0.5)
+        LiveFPS.Text = fps .. " FPS"
+        if fps >= 55 then
+            LiveFPS.TextColor3 = GREEN
+        elseif fps >= 30 then
+            LiveFPS.TextColor3 = YELLOW
+        else
+            LiveFPS.TextColor3 = Color3.fromRGB(255, 50, 50)
+        end
+        fT, fC = 0, 0
+    end
+end)
